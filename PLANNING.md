@@ -670,26 +670,21 @@ A compact table at the bottom of the metrics panel:
 
 ---
 
-## 12. Open Questions
+## 12. Open Questions — Resolved
 
-The following decisions should be resolved before or during implementation:
+All questions have been resolved. Decisions are recorded below for reference.
 
-1. **Node geo-placement data:** Should Flexnode positions reflect real-world Optimum operator locations, or are they abstract? If real, we need a data source or API for node coordinates.
-
-2. **3D globe priority:** Is the 3D globe view (Phase 4) a hard requirement, or is the 2D network graph sufficient for launch? The 3D view adds significant complexity and bundle size (~200KB for Three.js).
-
-3. **Simulation accuracy vs. performance:** For node counts >20, should we offload the simulation to a Web Worker to keep the UI thread free? This adds complexity to the state synchronization.
-
-4. **Hoodi testnet data:** The 150ms benchmark is cited from the Hoodi testnet. Should the dashboard include a way to load real testnet data (historical latency traces) alongside the simulation, or is the simulation-only approach sufficient?
-
-5. **Branding assets:** We need the Optimum logo, brand colors, and any typography guidelines. Are the teal/dark palette choices in this document aligned with Optimum's brand?
-
-6. **Target audience:** Is the primary audience (a) blockchain developers evaluating mump2p, (b) investors/stakeholders wanting a visual demo, or (c) both? This affects the level of technical detail exposed by default vs. hidden in "Advanced" panels.
-
-7. **Message/blob size parameter:** Should users be able to configure the simulated message size (e.g., 128KB Ethereum blob vs. larger Solana blocks)? This affects the number of shards `k` and makes the simulation more realistic but adds UI complexity.
-
-8. **Mobile experience:** Is mobile support (< 768px) a requirement for launch, or is this primarily a desktop/presentation tool?
+| # | Question | Decision | Impact |
+|---|---|---|---|
+| 1 | **Node geo-placement** | Abstract. Nodes randomly distributed on land masses. Population-weighted placement is a future enhancement, not MVP. | No geo-data API needed. Use simple random-on-land coordinate generation. |
+| 2 | **3D globe priority** | Flat 2D map for MVP. 3D globe is a nice-to-have for a future phase. | Skip React Three Fiber / Three.js for now. Reduces bundle size by ~200KB. |
+| 3 | **Web Worker for simulation** | Skip for MVP. Run simulation on main thread. Revisit only if profiling shows frame drops at high node counts (>20). | Simpler architecture. No cross-thread serialization overhead. |
+| 4 | **Hoodi testnet data** | Not needed. This is an abstract visualization, not a replay of real network traces. The 150ms benchmark is referenced as context only. | No data ingestion pipeline required. |
+| 5 | **Branding assets** | No brand assets for now. Use the teal/dark palette defined in this doc. Brand assets can be swapped in later if deployed on Optimum's official channels. | Proceed with planned color system. |
+| 6 | **Target audience** | Technically minded blockchain professionals — potential enterprise clients and Flexnode operators. Show them why decentralized RLNC networking is more efficient. | Default to showing technical detail. "Advanced" panel can still hide protocol-level knobs (k, D) but the main UI should not oversimplify. |
+| 7 | **Message/blob size parameter** | Keep `k` (original shards) as an abstract slider in the Advanced panel (default 4). No real-world byte-size mapping needed. | Simpler UI. One fewer concept for users to map. |
+| 8 | **Mobile support** | Minimal. Desktop/web only for MVP. No responsive work for <1024px. | Skip mobile breakpoint implementation. Simplifies layout work in Phase 3. |
 
 ---
 
-*This document serves as the technical blueprint for implementation. Each phase should be reviewed and approved before development begins. Answers to the open questions in Section 12 will refine the specifications in subsequent revisions.*
+*All open questions resolved as of 2026-02-05. This document now serves as the approved technical blueprint for implementation. Phase 1 development can begin immediately.*

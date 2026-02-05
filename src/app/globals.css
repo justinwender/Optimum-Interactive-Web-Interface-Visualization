@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0A0E17;
+  --foreground: #E8EAED;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* React Flow overrides for dark theme */
+.react-flow__pane {
+  cursor: grab;
+}
+
+.react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.react-flow__node {
+  cursor: pointer;
+}
+
+/* Slider styling */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: #1e2840;
+  outline: none;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #00BFA5;
+  cursor: pointer;
+  border: 2px solid #0A0E17;
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #00BFA5;
+  cursor: pointer;
+  border: 2px solid #0A0E17;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a3450;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a4a60;
+}
