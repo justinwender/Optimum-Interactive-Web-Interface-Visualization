@@ -2,6 +2,11 @@
 
 import { useDashboardStore } from '@/store';
 import {
+  getRLNCRank,
+  isRLNCReconstructed,
+  hasGossipMessage,
+} from '@/simulation/engine';
+import {
   BG_PANEL,
   TEXT_PRIMARY,
   TEXT_SECONDARY,
@@ -11,22 +16,22 @@ import {
 } from '@/constants/colors';
 
 export default function MetricsPanel() {
-  const rlncDeliveryTime = useDashboardStore((s) => s.rlncDeliveryTime);
-  const gossipDeliveryTime = useDashboardStore((s) => s.gossipDeliveryTime);
-  const rlncMetrics = useDashboardStore((s) => s.rlncMetrics);
-  const gossipMetrics = useDashboardStore((s) => s.gossipMetrics);
+  const engineMetrics = useDashboardStore((s) => s.engineMetrics);
   const running = useDashboardStore((s) => s.running);
+  const simulationDone = useDashboardStore((s) => s.simulationDone);
   const publisherNodeId = useDashboardStore((s) => s.publisherNodeId);
-  const rlncStates = useDashboardStore((s) => s.rlncStates);
-  const gossipStates = useDashboardStore((s) => s.gossipStates);
   const subscriberNodeIds = useDashboardStore((s) => s.subscriberNodeIds);
   const k = useDashboardStore((s) => s.k);
+  const simTime = useDashboardStore((s) => s.simTime);
 
-  const rlncReconstructedCount = subscriberNodeIds.filter(
-    (id) => rlncStates.get(id)?.reconstructed,
+  const isIdle = !publisherNodeId;
+
+  // Compute success rates from engine state
+  const rlncReconstructedCount = subscriberNodeIds.filter((id) =>
+    isRLNCReconstructed(id),
   ).length;
-  const gossipDeliveredCount = subscriberNodeIds.filter(
-    (id) => gossipStates.get(id)?.hasMessage,
+  const gossipDeliveredCount = subscriberNodeIds.filter((id) =>
+    hasGossipMessage(id),
   ).length;
   const totalSubscribers = subscriberNodeIds.length;
 
@@ -39,16 +44,19 @@ export default function MetricsPanel() {
       ? Math.round((gossipDeliveredCount / totalSubscribers) * 100)
       : 0;
 
-  const rlncOverhead =
-    rlncMetrics.usefulTransmissions > 0
-      ? (rlncMetrics.totalTransmissions / rlncMetrics.usefulTransmissions).toFixed(2)
-      : '-';
-  const gossipOverhead =
-    gossipMetrics.usefulTransmissions > 0
-      ? (gossipMetrics.totalTransmissions / gossipMetrics.usefulTransmissions).toFixed(2)
-      : '-';
+  const rlncDeliveryTime = engineMetrics?.rlnc.lastDeliverySimMs ?? null;
+  const gossipDeliveryTime = engineMetrics?.gossipsub.lastDeliverySimMs ?? null;
 
-  const isIdle = !publisherNodeId;
+  const rlncTotal = engineMetrics?.rlnc.totalTransmissions ?? 0;
+  const rlncUseful = engineMetrics?.rlnc.usefulTransmissions ?? 0;
+  const gossipTotal = engineMetrics?.gossipsub.totalTransmissions ?? 0;
+  const gossipUseful = engineMetrics?.gossipsub.usefulTransmissions ?? 0;
+  const gossipDuplicates = engineMetrics?.gossipsub.duplicates ?? 0;
+
+  const rlncOverhead =
+    rlncUseful > 0 ? (rlncTotal / rlncUseful).toFixed(2) : '-';
+  const gossipOverhead =
+    gossipUseful > 0 ? (gossipTotal / gossipUseful).toFixed(2) : '-';
 
   return (
     <div
@@ -64,20 +72,27 @@ export default function MetricsPanel() {
           {isIdle
             ? 'Click a node to start propagation'
             : running
-              ? 'Simulation running...'
-              : 'Simulation complete'}
+              ? `Sim time: ${simTime.toFixed(1)}ms`
+              : simulationDone
+                ? 'Simulation complete'
+                : 'Paused'}
         </p>
       </div>
 
       {/* Latency */}
-      <MetricSection title="Latency">
+      <MetricSection title="Latency (simulated)">
         <DualBar
-          label="Delivery Time"
+          label="Full delivery time"
           rlncValue={rlncDeliveryTime}
           gossipValue={gossipDeliveryTime}
           unit="ms"
           maxValue={Math.max(rlncDeliveryTime ?? 100, gossipDeliveryTime ?? 100, 100)}
         />
+        {rlncDeliveryTime !== null && gossipDeliveryTime !== null && (
+          <p className="text-[10px] mt-2 font-medium" style={{ color: ACCENT_TEAL }}>
+            mump2p is {((1 - rlncDeliveryTime / gossipDeliveryTime) * 100).toFixed(0)}% faster
+          </p>
+        )}
       </MetricSection>
 
       {/* Success Rate */}
@@ -103,18 +118,23 @@ export default function MetricsPanel() {
         <div className="space-y-2">
           <MetricRow
             label="Total Transmissions"
-            rlnc={String(rlncMetrics.totalTransmissions)}
-            gossip={String(gossipMetrics.totalTransmissions)}
+            rlnc={String(rlncTotal)}
+            gossip={String(gossipTotal)}
           />
           <MetricRow
             label="Useful"
-            rlnc={String(rlncMetrics.usefulTransmissions)}
-            gossip={String(gossipMetrics.usefulTransmissions)}
+            rlnc={String(rlncUseful)}
+            gossip={String(gossipUseful)}
           />
           <MetricRow
             label="Overhead Ratio"
             rlnc={`${rlncOverhead}x`}
             gossip={`${gossipOverhead}x`}
+          />
+          <MetricRow
+            label="Duplicates"
+            rlnc="-"
+            gossip={String(gossipDuplicates)}
           />
         </div>
       </MetricSection>
@@ -124,8 +144,9 @@ export default function MetricsPanel() {
         <MetricSection title="Node Status">
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
             {subscriberNodeIds.map((id) => {
-              const rlnc = rlncStates.get(id);
-              const gossip = gossipStates.get(id);
+              const rank = getRLNCRank(id);
+              const reconstructed = isRLNCReconstructed(id);
+              const hasMsg = hasGossipMessage(id);
               return (
                 <div
                   key={id}
@@ -139,18 +160,21 @@ export default function MetricsPanel() {
                     <div
                       className="h-full rounded-full transition-all duration-300"
                       style={{
-                        width: `${((rlnc?.rank ?? 0) / k) * 100}%`,
-                        backgroundColor: rlnc?.reconstructed
+                        width: `${(rank / k) * 100}%`,
+                        backgroundColor: reconstructed
                           ? RECONSTRUCTED_GREEN
                           : ACCENT_TEAL,
                       }}
                     />
                   </div>
+                  <span className="text-[9px] font-mono w-6 text-right" style={{ color: TEXT_SECONDARY }}>
+                    {rank}/{k}
+                  </span>
                   {/* GossipSub indicator */}
                   <div
                     className="w-2.5 h-2.5 rounded-full"
                     style={{
-                      backgroundColor: gossip?.hasMessage
+                      backgroundColor: hasMsg
                         ? GOSSIP_COLOR
                         : '#1e2840',
                     }}
@@ -162,7 +186,7 @@ export default function MetricsPanel() {
           <div className="flex items-center gap-3 mt-2 text-[10px]" style={{ color: TEXT_SECONDARY }}>
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: RECONSTRUCTED_GREEN }} />
-              RLNC
+              RLNC rank
             </span>
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: GOSSIP_COLOR }} />
@@ -173,7 +197,7 @@ export default function MetricsPanel() {
       )}
 
       {/* Comparison Table */}
-      {!isIdle && !running && (
+      {!isIdle && simulationDone && (
         <MetricSection title="Summary">
           <div className="rounded border border-[#2a3450] overflow-hidden">
             <table className="w-full text-[10px]">
@@ -187,8 +211,8 @@ export default function MetricsPanel() {
               <tbody>
                 <tr className="border-b border-[#2a3450]">
                   <td className="p-2" style={{ color: TEXT_SECONDARY }}>Delivery</td>
-                  <td className="text-right p-2 font-mono">{rlncDeliveryTime ?? '-'}ms</td>
-                  <td className="text-right p-2 font-mono">{gossipDeliveryTime ?? '-'}ms</td>
+                  <td className="text-right p-2 font-mono">{rlncDeliveryTime != null ? `${rlncDeliveryTime}ms` : 'N/A'}</td>
+                  <td className="text-right p-2 font-mono">{gossipDeliveryTime != null ? `${gossipDeliveryTime}ms` : 'N/A'}</td>
                 </tr>
                 <tr className="border-b border-[#2a3450]">
                   <td className="p-2" style={{ color: TEXT_SECONDARY }}>Success</td>
@@ -249,7 +273,6 @@ function DualBar({
       <div className="flex items-center justify-between text-[10px]" style={{ color: TEXT_SECONDARY }}>
         <span>{label}</span>
       </div>
-      {/* mump2p bar */}
       <div className="flex items-center gap-2">
         <span className="text-[9px] w-14" style={{ color: RECONSTRUCTED_GREEN }}>mump2p</span>
         <div className="flex-1 h-3 rounded bg-[#1e2840] overflow-hidden">
@@ -261,11 +284,10 @@ function DualBar({
             }}
           />
         </div>
-        <span className="text-[10px] font-mono w-12 text-right">
+        <span className="text-[10px] font-mono w-16 text-right">
           {rlncValue != null ? `${rlncValue}${unit}` : '...'}
         </span>
       </div>
-      {/* GossipSub bar */}
       <div className="flex items-center gap-2">
         <span className="text-[9px] w-14" style={{ color: GOSSIP_COLOR }}>Gossip</span>
         <div className="flex-1 h-3 rounded bg-[#1e2840] overflow-hidden">
@@ -277,7 +299,7 @@ function DualBar({
             }}
           />
         </div>
-        <span className="text-[10px] font-mono w-12 text-right">
+        <span className="text-[10px] font-mono w-16 text-right">
           {gossipValue != null ? `${gossipValue}${unit}` : '...'}
         </span>
       </div>

@@ -7,19 +7,20 @@ import MetricsPanel from '@/components/metrics/MetricsPanel';
 import { useDashboardStore } from '@/store';
 import { ACCENT_TEAL, BG_PRIMARY, BG_PANEL, TEXT_PRIMARY, TEXT_SECONDARY } from '@/constants/colors';
 
-// Dynamic import to avoid SSR issues with React Flow
 const NetworkCanvas = dynamic(
   () => import('@/components/canvas/NetworkCanvas'),
   { ssr: false },
 );
 
 export default function Home() {
-  useSimulationLoop();
+  const { stepForward } = useSimulationLoop();
 
   const running = useDashboardStore((s) => s.running);
   const nodeCount = useDashboardStore((s) => s.nodeCount);
   const packetLoss = useDashboardStore((s) => s.packetLoss);
   const networkPreset = useDashboardStore((s) => s.networkPreset);
+  const simTime = useDashboardStore((s) => s.simTime);
+  const simulationDone = useDashboardStore((s) => s.simulationDone);
 
   return (
     <div
@@ -65,7 +66,7 @@ export default function Home() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar — Controls */}
         <aside className="w-72 flex-shrink-0 border-r border-[#1e2840] overflow-hidden">
-          <ControlPanel />
+          <ControlPanel onStep={stepForward} />
         </aside>
 
         {/* Center — Canvas */}
@@ -81,15 +82,16 @@ export default function Home() {
               <span className="flex items-center gap-1.5">
                 <span
                   className="w-1.5 h-1.5 rounded-full"
-                  style={{ backgroundColor: running ? ACCENT_TEAL : '#4A5568' }}
+                  style={{ backgroundColor: running ? ACCENT_TEAL : simulationDone ? '#00E676' : '#4A5568' }}
                 />
-                {running ? 'Running' : 'Idle'}
+                {running ? 'Running' : simulationDone ? 'Complete' : 'Idle'}
               </span>
               <span>{nodeCount} nodes</span>
               <span>{packetLoss}% loss</span>
+              {simTime > 0 && <span className="font-mono">{simTime.toFixed(1)}ms sim</span>}
             </div>
             <p className="text-[10px]" style={{ color: TEXT_SECONDARY }}>
-              Click any node to start propagation
+              {simulationDone ? 'Reset to run again' : 'Click any node to start propagation'}
             </p>
           </div>
         </main>

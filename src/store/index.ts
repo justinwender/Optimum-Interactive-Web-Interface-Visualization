@@ -7,10 +7,8 @@ import type {
   NetworkPreset,
   TopologyType,
   AnimatedParticle,
-  RLNCNodeState,
-  GossipSubNodeState,
-  ProtocolMetrics,
 } from '@/simulation/types';
+import type { EngineMetrics } from '@/simulation/engine';
 import { generateTopology } from '@/simulation/topology';
 import { setSeed } from '@/lib/prng';
 import {
@@ -42,25 +40,16 @@ export interface DashboardState {
   // Simulation
   running: boolean;
   speed: number;
-  tick: number;
+  simTime: number;          // Current simulated time in ms (starts at 0)
   publisherNodeId: string | null;
   subscriberNodeIds: string[];
-
-  // Protocol state
-  rlncStates: Map<string, RLNCNodeState>;
-  gossipStates: Map<string, GossipSubNodeState>;
+  simulationDone: boolean;
 
   // Animation
   particles: AnimatedParticle[];
 
-  // Metrics
-  rlncMetrics: ProtocolMetrics;
-  gossipMetrics: ProtocolMetrics;
-
-  // Timers (ms from propagation start)
-  rlncDeliveryTime: number | null;
-  gossipDeliveryTime: number | null;
-  propagationStartTime: number | null;
+  // Metrics (pushed from engine)
+  engineMetrics: EngineMetrics | null;
 
   // Actions
   setNodeCount: (count: number) => void;
@@ -74,28 +63,10 @@ export interface DashboardState {
   startPropagation: (publisherId: string) => void;
   resetSimulation: () => void;
   setRunning: (running: boolean) => void;
-  addParticle: (particle: AnimatedParticle) => void;
-  removeParticle: (id: string) => void;
+  setSimTime: (t: number) => void;
   updateParticles: (particles: AnimatedParticle[]) => void;
-  setRLNCState: (nodeId: string, state: RLNCNodeState) => void;
-  setGossipState: (nodeId: string, state: GossipSubNodeState) => void;
-  setRLNCDeliveryTime: (time: number) => void;
-  setGossipDeliveryTime: (time: number) => void;
-  incrementRLNCTransmissions: (useful: boolean) => void;
-  incrementGossipTransmissions: (useful: boolean) => void;
-  setPropagationStartTime: (time: number) => void;
-}
-
-function emptyMetrics(): ProtocolMetrics {
-  return {
-    lastDeliveryMs: null,
-    deliveryTimes: [],
-    totalTransmissions: 0,
-    usefulTransmissions: 0,
-    successCount: 0,
-    failCount: 0,
-    partialCount: 0,
-  };
+  pushEngineMetrics: (m: EngineMetrics) => void;
+  setSimulationDone: (done: boolean) => void;
 }
 
 function buildTopology(
@@ -134,25 +105,16 @@ export const useDashboardStore = create<DashboardState>((set, get) => {
     // Simulation
     running: false,
     speed: DEFAULT_SPEED,
-    tick: 0,
+    simTime: 0,
     publisherNodeId: null,
     subscriberNodeIds: [],
-
-    // Protocol state
-    rlncStates: new Map(),
-    gossipStates: new Map(),
+    simulationDone: false,
 
     // Animation
     particles: [],
 
     // Metrics
-    rlncMetrics: emptyMetrics(),
-    gossipMetrics: emptyMetrics(),
-
-    // Timers
-    rlncDeliveryTime: null,
-    gossipDeliveryTime: null,
-    propagationStartTime: null,
+    engineMetrics: null,
 
     // ── Actions ──
 
@@ -165,14 +127,11 @@ export const useDashboardStore = create<DashboardState>((set, get) => {
         edges: topo.edges,
         particles: [],
         running: false,
-        tick: 0,
+        simTime: 0,
         publisherNodeId: null,
-        rlncStates: new Map(),
-        gossipStates: new Map(),
-        rlncDeliveryTime: null,
-        gossipDeliveryTime: null,
-        rlncMetrics: emptyMetrics(),
-        gossipMetrics: emptyMetrics(),
+        subscriberNodeIds: [],
+        engineMetrics: null,
+        simulationDone: false,
       });
     },
 
@@ -195,16 +154,16 @@ export const useDashboardStore = create<DashboardState>((set, get) => {
         edges: topo.edges,
         particles: [],
         running: false,
-        tick: 0,
+        simTime: 0,
         publisherNodeId: null,
-        rlncStates: new Map(),
-        gossipStates: new Map(),
-        rlncDeliveryTime: null,
-        gossipDeliveryTime: null,
+        subscriberNodeIds: [],
+        engineMetrics: null,
+        simulationDone: false,
       });
     },
 
     setComparisonMode: (mode) => set({ comparisonMode: mode }),
+
     setTopology: (type) => {
       const { nodeCount, networkPreset, packetLoss } = get();
       const topo = buildTopology(nodeCount, type, networkPreset, packetLoss);
@@ -214,12 +173,14 @@ export const useDashboardStore = create<DashboardState>((set, get) => {
         edges: topo.edges,
         particles: [],
         running: false,
-        tick: 0,
+        simTime: 0,
         publisherNodeId: null,
-        rlncStates: new Map(),
-        gossipStates: new Map(),
+        subscriberNodeIds: [],
+        engineMetrics: null,
+        simulationDone: false,
       });
     },
+
     setK: (k) => set({ k }),
     setSpeed: (speed) => set({ speed }),
 
@@ -231,137 +192,53 @@ export const useDashboardStore = create<DashboardState>((set, get) => {
         edges: topo.edges,
         particles: [],
         running: false,
-        tick: 0,
+        simTime: 0,
         publisherNodeId: null,
-        rlncStates: new Map(),
-        gossipStates: new Map(),
-        rlncDeliveryTime: null,
-        gossipDeliveryTime: null,
+        subscriberNodeIds: [],
+        engineMetrics: null,
+        simulationDone: false,
       });
     },
 
     startPropagation: (publisherId) => {
-      const { nodes, k } = get();
-      // Initialize protocol states
-      const rlncStates = new Map<string, RLNCNodeState>();
-      const gossipStates = new Map<string, GossipSubNodeState>();
+      const { nodes } = get();
       const subscriberIds: string[] = [];
-
       for (const node of nodes) {
-        const isPublisher = node.id === publisherId;
-        rlncStates.set(node.id, {
-          nodeId: node.id,
-          coefficientMatrix: [],
-          rank: isPublisher ? k : 0,
-          k,
-          reconstructed: isPublisher,
-          shardsReceived: isPublisher ? k : 0,
-          firstShardTick: isPublisher ? 0 : null,
-          reconstructionTick: isPublisher ? 0 : null,
-        });
-        gossipStates.set(node.id, {
-          nodeId: node.id,
-          hasMessage: isPublisher,
-          receivedAtTick: isPublisher ? 0 : null,
-          forwardedTo: [],
-          duplicatesReceived: 0,
-        });
-        if (!isPublisher) subscriberIds.push(node.id);
-        // Update role
-        node.role = isPublisher ? 'publisher' : 'relay';
+        if (node.id !== publisherId) {
+          subscriberIds.push(node.id);
+          node.role = 'relay';
+        } else {
+          node.role = 'publisher';
+        }
       }
 
       set({
         publisherNodeId: publisherId,
         subscriberNodeIds: subscriberIds,
-        rlncStates,
-        gossipStates,
         running: true,
-        tick: 0,
+        simTime: 0,
         particles: [],
-        rlncDeliveryTime: null,
-        gossipDeliveryTime: null,
-        rlncMetrics: emptyMetrics(),
-        gossipMetrics: emptyMetrics(),
-        propagationStartTime: performance.now(),
+        engineMetrics: null,
+        simulationDone: false,
       });
     },
 
     resetSimulation: () => {
       set({
         running: false,
-        tick: 0,
+        simTime: 0,
         particles: [],
         publisherNodeId: null,
         subscriberNodeIds: [],
-        rlncStates: new Map(),
-        gossipStates: new Map(),
-        rlncDeliveryTime: null,
-        gossipDeliveryTime: null,
-        rlncMetrics: emptyMetrics(),
-        gossipMetrics: emptyMetrics(),
-        propagationStartTime: null,
+        engineMetrics: null,
+        simulationDone: false,
       });
     },
 
     setRunning: (running) => set({ running }),
-    addParticle: (particle) =>
-      set((state) => ({ particles: [...state.particles, particle] })),
-    removeParticle: (id) =>
-      set((state) => ({
-        particles: state.particles.filter((p) => p.id !== id),
-      })),
+    setSimTime: (t) => set({ simTime: t }),
     updateParticles: (particles) => set({ particles }),
-    setRLNCState: (nodeId, state) =>
-      set((s) => {
-        const newMap = new Map(s.rlncStates);
-        newMap.set(nodeId, state);
-        return { rlncStates: newMap };
-      }),
-    setGossipState: (nodeId, state) =>
-      set((s) => {
-        const newMap = new Map(s.gossipStates);
-        newMap.set(nodeId, state);
-        return { gossipStates: newMap };
-      }),
-    setRLNCDeliveryTime: (time) =>
-      set((s) => ({
-        rlncDeliveryTime: time,
-        rlncMetrics: {
-          ...s.rlncMetrics,
-          lastDeliveryMs: time,
-          deliveryTimes: [...s.rlncMetrics.deliveryTimes, time],
-          successCount: s.rlncMetrics.successCount + 1,
-        },
-      })),
-    setGossipDeliveryTime: (time) =>
-      set((s) => ({
-        gossipDeliveryTime: time,
-        gossipMetrics: {
-          ...s.gossipMetrics,
-          lastDeliveryMs: time,
-          deliveryTimes: [...s.gossipMetrics.deliveryTimes, time],
-          successCount: s.gossipMetrics.successCount + 1,
-        },
-      })),
-    incrementRLNCTransmissions: (useful) =>
-      set((s) => ({
-        rlncMetrics: {
-          ...s.rlncMetrics,
-          totalTransmissions: s.rlncMetrics.totalTransmissions + 1,
-          usefulTransmissions:
-            s.rlncMetrics.usefulTransmissions + (useful ? 1 : 0),
-        },
-      })),
-    incrementGossipTransmissions: (useful) =>
-      set((s) => ({
-        gossipMetrics: {
-          ...s.gossipMetrics,
-          totalTransmissions: s.gossipMetrics.totalTransmissions + 1,
-          usefulTransmissions:
-            s.gossipMetrics.usefulTransmissions + (useful ? 1 : 0),
-        },
-      })),
-    setPropagationStartTime: (time) => set({ propagationStartTime: time }),
+    pushEngineMetrics: (m) => set({ engineMetrics: m }),
+    setSimulationDone: (done) => set({ simulationDone: done, running: !done }),
   };
 });

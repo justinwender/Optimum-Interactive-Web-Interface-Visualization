@@ -4,11 +4,15 @@ import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useDashboardStore } from '@/store';
 import {
+  getRLNCRank,
+  isRLNCReconstructed,
+  hasGossipMessage,
+} from '@/simulation/engine';
+import {
   NODE_IDLE,
   NODE_PUBLISHING,
   RECONSTRUCTED_GREEN,
   GOSSIP_COLOR,
-  FAILURE_RED,
   ACCENT_TEAL,
 } from '@/constants/colors';
 
@@ -20,16 +24,24 @@ export interface FlexNodeData {
 
 function FlexNodeComponent({ data }: NodeProps) {
   const { label, nodeId } = data as unknown as FlexNodeData;
+  const nid = nodeId as string;
   const publisherNodeId = useDashboardStore((s) => s.publisherNodeId);
-  const rlncState = useDashboardStore((s) => s.rlncStates.get(nodeId as string));
-  const gossipState = useDashboardStore((s) => s.gossipStates.get(nodeId as string));
   const k = useDashboardStore((s) => s.k);
   const running = useDashboardStore((s) => s.running);
+  const comparisonMode = useDashboardStore((s) => s.comparisonMode);
+  const startPropagation = useDashboardStore((s) => s.startPropagation);
+  const simulationDone = useDashboardStore((s) => s.simulationDone);
 
-  const isPublisher = publisherNodeId === nodeId;
-  const rlncProgress = rlncState ? rlncState.rank / k : 0;
-  const rlncDone = rlncState?.reconstructed ?? false;
-  const gossipDone = gossipState?.hasMessage ?? false;
+  // Read engine state directly (re-renders driven by simTime changes)
+  const simTime = useDashboardStore((s) => s.simTime);
+  const isPublisher = publisherNodeId === nid;
+  const hasStarted = publisherNodeId !== null;
+
+  // Only query engine state if simulation has been started
+  const rlncRank = hasStarted && !isPublisher ? getRLNCRank(nid) : (isPublisher ? k : 0);
+  const rlncDone = hasStarted && !isPublisher ? isRLNCReconstructed(nid) : isPublisher;
+  const gossipDone = hasStarted && !isPublisher ? hasGossipMessage(nid) : isPublisher;
+  const rlncProgress = k > 0 ? rlncRank / k : 0;
 
   // Determine border color
   let borderColor = NODE_IDLE;
@@ -41,12 +53,9 @@ function FlexNodeComponent({ data }: NodeProps) {
     borderColor = GOSSIP_COLOR;
   }
 
-  const startPropagation = useDashboardStore((s) => s.startPropagation);
-  const comparisonMode = useDashboardStore((s) => s.comparisonMode);
-
   const handleClick = () => {
-    if (comparisonMode === 'click' && !running) {
-      startPropagation(nodeId as string);
+    if (comparisonMode === 'click' && !running && !simulationDone) {
+      startPropagation(nid);
     }
   };
 
@@ -63,7 +72,6 @@ function FlexNodeComponent({ data }: NodeProps) {
         className="absolute top-0 left-0"
         viewBox="0 0 64 64"
       >
-        {/* Background circle */}
         <circle
           cx={32}
           cy={32}
@@ -73,7 +81,6 @@ function FlexNodeComponent({ data }: NodeProps) {
           strokeWidth={3}
           opacity={0.3}
         />
-        {/* Progress arc */}
         {rlncProgress > 0 && !isPublisher && (
           <circle
             cx={32}
@@ -115,7 +122,7 @@ function FlexNodeComponent({ data }: NodeProps) {
       </div>
 
       {/* Status indicator */}
-      {!isPublisher && (rlncDone || gossipDone) && (
+      {!isPublisher && hasStarted && (rlncDone || gossipDone) && (
         <div
           className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold z-20"
           style={{
@@ -128,7 +135,7 @@ function FlexNodeComponent({ data }: NodeProps) {
       )}
 
       {/* Hover tooltip */}
-      {!running && comparisonMode === 'click' && (
+      {!running && !simulationDone && comparisonMode === 'click' && (
         <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap pointer-events-none">
           Click to publish from {label as string}
         </div>

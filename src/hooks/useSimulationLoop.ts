@@ -4,86 +4,81 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useDashboardStore } from '@/store';
 import {
   initPropagation,
-  processEvents,
-  getPropagationStartTs,
+  advanceTo,
   hasRemainingEvents,
-  clearEvents,
+  clearEngine,
+  nextEventTime,
 } from '@/simulation/engine';
 
 /**
  * Drives the simulation via requestAnimationFrame.
- * Processes scheduled events and updates particle positions.
+ *
+ * Maintains a `simTime` counter (simulated ms, starting at 0).
+ * Each frame advances simTime by `realDeltaMs * speed`, then processes
+ * all engine events up to that point and updates particle positions.
  */
 export function useSimulationLoop() {
   const rafRef = useRef<number | null>(null);
+  const lastFrameRef = useRef<number>(0);
   const initializedRef = useRef(false);
 
-  const tick = useCallback(() => {
+  const tick = useCallback((timestamp: number) => {
     const store = useDashboardStore.getState();
     if (!store.running || !store.publisherNodeId) {
       rafRef.current = null;
       return;
     }
 
-    // Initialize propagation on first tick
+    // Initialize engine on first tick after startPropagation
     if (!initializedRef.current) {
-      initPropagation(store);
+      initPropagation({
+        publisherNodeId: store.publisherNodeId,
+        nodes: store.nodes,
+        edges: store.edges,
+        k: store.k,
+        redundancyFactor: store.redundancyFactor,
+        packetLoss: store.packetLoss,
+      });
       initializedRef.current = true;
+      lastFrameRef.current = timestamp;
     }
 
-    const now = performance.now();
-    const startTs = getPropagationStartTs();
+    // Compute real elapsed time and advance simulated time
+    const realDeltaMs = Math.min(timestamp - lastFrameRef.current, 50); // Cap at 50ms to avoid spiral
+    lastFrameRef.current = timestamp;
 
-    // Process events
-    const {
-      newParticles,
-      rlncReconstructed,
-      gossipDelivered,
-      rlncAllDone,
-      gossipAllDone,
-    } = processEvents(now, store);
+    const simDelta = realDeltaMs * store.speed;
+    const newSimTime = store.simTime + simDelta;
 
-    // Add new particles
-    if (newParticles.length > 0) {
-      const currentParticles = useDashboardStore.getState().particles;
-      store.updateParticles([...currentParticles, ...newParticles]);
-    }
+    // Process engine events up to newSimTime
+    const { newParticles, metrics } = advanceTo(
+      newSimTime,
+      store.packetLoss,
+      store.nodes,
+    );
 
-    // Update existing particle progress
-    const updatedParticles = useDashboardStore
-      .getState()
-      .particles.map((p) => {
-        const elapsed = now - p.startTime;
-        const progress = Math.min(1, elapsed / (p.duration * (1 / store.speed)));
+    // Update particle progress based on simulated time
+    const allParticles = [...store.particles, ...newParticles];
+    const updatedParticles = allParticles
+      .map((p) => {
+        const simElapsed = newSimTime - p.startTime;
+        const progress = Math.min(1, simElapsed / p.duration);
         return { ...p, progress };
       })
-      .filter((p) => p.progress < 1); // Remove completed particles
+      .filter((p) => p.progress < 1);
 
+    // Push updates to store
+    store.setSimTime(newSimTime);
     store.updateParticles(updatedParticles);
+    store.pushEngineMetrics(metrics);
 
-    // Check RLNC completion
-    if (rlncAllDone && store.rlncDeliveryTime === null) {
-      const deliveryMs = Math.round(now - startTs);
-      store.setRLNCDeliveryTime(deliveryMs);
-    }
+    // Check if simulation is complete
+    const bothDone = metrics.rlnc.allDone && metrics.gossipsub.allDone;
+    const noMoreEvents = !hasRemainingEvents();
+    const noMoreParticles = updatedParticles.length === 0;
 
-    // Check GossipSub completion
-    if (gossipAllDone && store.gossipDeliveryTime === null) {
-      const deliveryMs = Math.round(now - startTs);
-      store.setGossipDeliveryTime(deliveryMs);
-    }
-
-    // Stop if both done and no more events/particles
-    if (rlncAllDone && gossipAllDone && !hasRemainingEvents() && updatedParticles.length === 0) {
-      store.setRunning(false);
-      initializedRef.current = false;
-      rafRef.current = null;
-      return;
-    }
-
-    // Stop if no events left and we've waited long enough
-    if (!hasRemainingEvents() && updatedParticles.length === 0 && now - startTs > 10000) {
-      store.setRunning(false);
+    if ((bothDone && noMoreParticles) || (noMoreEvents && noMoreParticles && newSimTime > 5000)) {
+      store.setSimulationDone(true);
       initializedRef.current = false;
       rafRef.current = null;
       return;
@@ -92,12 +87,63 @@ export function useSimulationLoop() {
     rafRef.current = requestAnimationFrame(tick);
   }, []);
 
+  // Step forward: advance to the next event time
+  const stepForward = useCallback(() => {
+    const store = useDashboardStore.getState();
+    if (!store.publisherNodeId) return;
+
+    // Initialize if needed
+    if (!initializedRef.current) {
+      initPropagation({
+        publisherNodeId: store.publisherNodeId,
+        nodes: store.nodes,
+        edges: store.edges,
+        k: store.k,
+        redundancyFactor: store.redundancyFactor,
+        packetLoss: store.packetLoss,
+      });
+      initializedRef.current = true;
+    }
+
+    const nextTime = nextEventTime();
+    if (nextTime === null) return;
+
+    const targetSimTime = nextTime + 0.001; // Just past the event
+
+    const { newParticles, metrics } = advanceTo(
+      targetSimTime,
+      store.packetLoss,
+      store.nodes,
+    );
+
+    const allParticles = [...store.particles, ...newParticles];
+    const updatedParticles = allParticles
+      .map((p) => {
+        const simElapsed = targetSimTime - p.startTime;
+        const progress = Math.min(1, simElapsed / p.duration);
+        return { ...p, progress };
+      })
+      .filter((p) => p.progress < 1);
+
+    store.setSimTime(targetSimTime);
+    store.updateParticles(updatedParticles);
+    store.pushEngineMetrics(metrics);
+
+    if (metrics.rlnc.allDone && metrics.gossipsub.allDone && !hasRemainingEvents()) {
+      store.setSimulationDone(true);
+      initializedRef.current = false;
+    }
+  }, []);
+
   const running = useDashboardStore((s) => s.running);
   const publisherNodeId = useDashboardStore((s) => s.publisherNodeId);
 
   useEffect(() => {
     if (running && publisherNodeId) {
-      initializedRef.current = false;
+      lastFrameRef.current = performance.now();
+      if (!initializedRef.current) {
+        // Will initialize on first tick
+      }
       rafRef.current = requestAnimationFrame(tick);
     }
     return () => {
@@ -111,10 +157,12 @@ export function useSimulationLoop() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      clearEvents();
+      clearEngine();
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
       }
     };
   }, []);
+
+  return { stepForward };
 }
