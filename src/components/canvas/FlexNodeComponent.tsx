@@ -57,19 +57,14 @@ function FlexNodeComponent({ data }: NodeProps) {
     if (gossipDone) borderColor = GOSSIP_COLOR;
   }
 
-  // Propagating glow (animated outer aura) — nodes actively sending data
-  // RLNC relays propagate from first shard onward (even after reconstruction)
+  // Propagating state — nodes actively sending/relaying data
+  // RLNC relays propagate from first shard onward (pipelining)
   // GossipSub relays propagate after receiving the full message
-  let glowClass = '';
-  if (hasStarted && !simulationDone) {
-    if (isPublisher) {
-      glowClass = 'publisher-glow';
-    } else if (isRLNC && rlncRank > 0) {
-      glowClass = 'rlnc-relay-glow';
-    } else if (!isRLNC && gossipDone) {
-      glowClass = 'gossip-relay-glow';
-    }
-  }
+  const isPropagating = hasStarted && (
+    isPublisher ||
+    (isRLNC && rlncRank > 0) ||
+    (!isRLNC && gossipDone)
+  );
 
   // Receiving fill — inner glow that fills up as data arrives
   let receivingProgress = 0;
@@ -108,7 +103,25 @@ function FlexNodeComponent({ data }: NodeProps) {
           height={64}
           className="absolute top-0 left-0"
           viewBox="0 0 64 64"
+          overflow="visible"
         >
+          {/* Propagating aura — rainbow cycling for RLNC relays */}
+          {isPropagating && !isPublisher && (
+            <circle cx={32} cy={32} r={36} opacity={0.2}>
+              <animate attributeName="fill"
+                values="#FF0000;#FF7F00;#FFFF00;#00C800;#0064FF;#8B00FF;#FF0000"
+                dur="3s" repeatCount="indefinite" />
+              <animate attributeName="r" values="32;42;32" dur="2s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.1;0.3;0.1" dur="2s" repeatCount="indefinite" />
+            </circle>
+          )}
+          {/* Publisher aura — white pulse */}
+          {isPropagating && isPublisher && (
+            <circle cx={32} cy={32} r={36} fill="white" opacity={0.15}>
+              <animate attributeName="r" values="32;44;32" dur="2s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.08;0.25;0.08" dur="2s" repeatCount="indefinite" />
+            </circle>
+          )}
           {/* Background ring */}
           <circle
             cx={32}
@@ -164,7 +177,22 @@ function FlexNodeComponent({ data }: NodeProps) {
           height={64}
           className="absolute top-0 left-0"
           viewBox="0 0 64 64"
+          overflow="visible"
         >
+          {/* Propagating aura — orange pulse for GossipSub relays */}
+          {isPropagating && !isPublisher && (
+            <circle cx={32} cy={32} r={36} fill={GOSSIP_COLOR} opacity={0.15}>
+              <animate attributeName="r" values="32;42;32" dur="2s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.08;0.25;0.08" dur="2s" repeatCount="indefinite" />
+            </circle>
+          )}
+          {/* Publisher aura — white pulse */}
+          {isPropagating && isPublisher && (
+            <circle cx={32} cy={32} r={36} fill="white" opacity={0.15}>
+              <animate attributeName="r" values="32;44;32" dur="2s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.08;0.25;0.08" dur="2s" repeatCount="indefinite" />
+            </circle>
+          )}
           <circle
             cx={32}
             cy={32}
@@ -189,9 +217,9 @@ function FlexNodeComponent({ data }: NodeProps) {
         </svg>
       )}
 
-      {/* Inner circle with propagating glow + receiving fill */}
+      {/* Inner circle with receiving fill */}
       <div
-        className={`rounded-full flex items-center justify-center z-10 ${glowClass}`}
+        className="rounded-full flex items-center justify-center z-10"
         style={{
           width: 44,
           height: 44,

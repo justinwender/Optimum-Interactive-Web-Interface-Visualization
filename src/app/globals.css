@@ -78,35 +78,4 @@ input[type='range']::-moz-range-thumb {
   background: #3a4a60;
 }
 
-/* ── Relay-active glow animations ── */
-
-@keyframes rlnc-relay-glow {
-  0%, 100% { box-shadow: 0 0 20px 8px rgba(255, 0, 0, 0.45); }
-  17% { box-shadow: 0 0 20px 8px rgba(255, 127, 0, 0.45); }
-  33% { box-shadow: 0 0 20px 8px rgba(255, 255, 0, 0.35); }
-  50% { box-shadow: 0 0 20px 8px rgba(0, 200, 0, 0.45); }
-  67% { box-shadow: 0 0 20px 8px rgba(0, 100, 255, 0.45); }
-  83% { box-shadow: 0 0 20px 8px rgba(139, 0, 255, 0.45); }
-}
-
-@keyframes gossip-relay-glow {
-  0%, 100% { box-shadow: 0 0 18px 7px rgba(255, 140, 0, 0.35); }
-  50% { box-shadow: 0 0 26px 11px rgba(255, 140, 0, 0.55); }
-}
-
-@keyframes publisher-glow {
-  0%, 100% { box-shadow: 0 0 20px 8px rgba(255, 255, 255, 0.3); }
-  50% { box-shadow: 0 0 30px 13px rgba(255, 255, 255, 0.45); }
-}
-
-.rlnc-relay-glow {
-  animation: rlnc-relay-glow 3s ease-in-out infinite;
-}
-
-.gossip-relay-glow {
-  animation: gossip-relay-glow 2s ease-in-out infinite;
-}
-
-.publisher-glow {
-  animation: publisher-glow 2s ease-in-out infinite;
-}
+/* Glow animations are now SVG-based (<animate> elements in FlexNodeComponent) */

@@ -301,16 +301,19 @@ function processRLNC(
 ): void {
   metrics.rlnc.totalTransmissions++;
 
-  // Create particle regardless (dropped ones shown faded)
+  // Create particle for visual animation.
+  // Start at current simTime and use an extended duration so the particle
+  // is visible for many frames (the actual delivery already happened).
   const edge = edgeLookup.get(`${event.fromNode}->${event.toNode}`);
+  const visualDuration = Math.max((edge?.latencyMs ?? 30) * 10, 500);
   newParticles.push({
     id: `rlnc-${event.fromNode}-${event.toNode}-${event.shardIndex}-${event.fireAt}`,
     protocol: 'rlnc',
     fromNode: event.fromNode,
     toNode: event.toNode,
     progress: 0,
-    duration: edge?.latencyMs ?? 30,
-    startTime: event.fireAt - (edge?.latencyMs ?? 30),
+    duration: visualDuration,
+    startTime: event.fireAt,
     shardIndex: event.shardIndex,
     dropped: event.dropped,
   });
@@ -383,14 +386,15 @@ function processGossip(
   metrics.gossipsub.totalTransmissions++;
 
   const edge = edgeLookup.get(`${event.fromNode}->${event.toNode}`);
+  const gVisualDuration = Math.max((edge?.latencyMs ?? 30) * 10, 500);
   newParticles.push({
     id: `gossip-${event.fromNode}-${event.toNode}-${event.fireAt}`,
     protocol: 'gossipsub',
     fromNode: event.fromNode,
     toNode: event.toNode,
     progress: 0,
-    duration: edge?.latencyMs ?? 30,
-    startTime: event.fireAt - (edge?.latencyMs ?? 30),
+    duration: gVisualDuration,
+    startTime: event.fireAt,
     dropped: event.dropped,
   });
 
