@@ -555,10 +555,10 @@ A compact table at the bottom of the metrics panel:
 - [x] GossipSub binary received indicator
 - [ ] Recoding "remix" animation at relay nodes
 - [ ] GossipSub duplicate "waste" visualization
-- [ ] On-Demand ("User Click") mode with dual timers
-- [ ] Continuous Propagation mode with configurable slot time
+- [x] On-Demand ("User Click") mode with dual race timers
+- [x] Continuous Propagation mode (auto-restart with random publisher)
 - [ ] Live comparison table enhancements
-- [ ] Keyboard shortcuts (Space = play/pause, R = reset)
+- [x] Keyboard shortcuts (Space = play/pause, R = reset, S = step)
 
 **Acceptance criteria:** User can clearly see mump2p propagating faster than GossipSub in the split view. The aura wavefront visibly spreads sooner on the RLNC side. Progress rings show incremental RLNC reconstruction. All metrics update in real time.
 
