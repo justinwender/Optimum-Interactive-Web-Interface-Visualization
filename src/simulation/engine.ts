@@ -152,8 +152,8 @@ export function initPropagation(params: InitParams): void {
       if (!edge) continue;
 
       const dropped = random() < lossRate;
-      // Stagger shards by 1ms each to simulate serialization
-      const arriveAt = edge.latencyMs + s * 1;
+      // Stagger shards by 0.3ms each — small shards serialize quickly
+      const arriveAt = edge.latencyMs + s * 0.3;
 
       eventQueue.push({
         fireAt: arriveAt,
@@ -221,21 +221,20 @@ export function advanceTo(
     subscriberIds.length > 0 &&
     subscriberIds.every((id) => gossipReceived.has(id));
 
-  // Compute last delivery times (max across all subscribers)
-  if (metrics.rlnc.allDone && metrics.rlnc.lastDeliverySimMs === null) {
+  // Compute last delivery times (max across all nodes that DID receive)
+  // Always update — don't wait for allDone, so partial delivery still shows latency
+  if (rlncNodeDeliveryTime.size > 0) {
     let maxTime = 0;
-    for (const id of subscriberIds) {
-      const t = rlncNodeDeliveryTime.get(id);
-      if (t !== undefined && t > maxTime) maxTime = t;
+    for (const t of rlncNodeDeliveryTime.values()) {
+      if (t > maxTime) maxTime = t;
     }
     metrics.rlnc.lastDeliverySimMs = Math.round(maxTime * 10) / 10;
   }
 
-  if (metrics.gossipsub.allDone && metrics.gossipsub.lastDeliverySimMs === null) {
+  if (gossipNodeDeliveryTime.size > 0) {
     let maxTime = 0;
-    for (const id of subscriberIds) {
-      const t = gossipNodeDeliveryTime.get(id);
-      if (t !== undefined && t > maxTime) maxTime = t;
+    for (const t of gossipNodeDeliveryTime.values()) {
+      if (t > maxTime) maxTime = t;
     }
     metrics.gossipsub.lastDeliverySimMs = Math.round(maxTime * 10) / 10;
   }
@@ -364,8 +363,12 @@ function processGossip(
     if (!neighborEdge) continue;
 
     const dropped = random() < lossRate;
+    // Store-and-forward: relay must receive FULL message, validate, then re-serialize.
+    // This takes time proportional to message size (~k shards worth of data).
+    // RLNC relays only need one shard to recode and forward (0.5ms).
+    const storeForwardDelay = simK * 1.5 + 1; // receive + validate + re-serialize
     eventQueue.push({
-      fireAt: event.fireAt + neighborEdge.latencyMs + 1, // +1ms processing
+      fireAt: event.fireAt + neighborEdge.latencyMs + storeForwardDelay,
       seq: 0,
       protocol: 'gossipsub',
       type: 'message_arrive',

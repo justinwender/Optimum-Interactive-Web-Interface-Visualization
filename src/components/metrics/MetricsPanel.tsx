@@ -88,11 +88,27 @@ export default function MetricsPanel() {
           unit="ms"
           maxValue={Math.max(rlncDeliveryTime ?? 100, gossipDeliveryTime ?? 100, 100)}
         />
-        {rlncDeliveryTime !== null && gossipDeliveryTime !== null && (
-          <p className="text-[10px] mt-2 font-medium" style={{ color: ACCENT_TEAL }}>
-            mump2p is {((1 - rlncDeliveryTime / gossipDeliveryTime) * 100).toFixed(0)}% faster
-          </p>
-        )}
+        {rlncDeliveryTime !== null && gossipDeliveryTime !== null && gossipDeliveryTime > 0 && (() => {
+          const pctFaster = ((1 - rlncDeliveryTime / gossipDeliveryTime) * 100);
+          if (pctFaster > 0) {
+            return (
+              <p className="text-[10px] mt-2 font-medium" style={{ color: ACCENT_TEAL }}>
+                mump2p is {pctFaster.toFixed(0)}% faster
+              </p>
+            );
+          } else if (pctFaster < 0) {
+            return (
+              <p className="text-[10px] mt-2 font-medium" style={{ color: GOSSIP_COLOR }}>
+                GossipSub is {Math.abs(pctFaster).toFixed(0)}% faster
+              </p>
+            );
+          }
+          return (
+            <p className="text-[10px] mt-2 font-medium" style={{ color: TEXT_SECONDARY }}>
+              Same delivery time
+            </p>
+          );
+        })()}
       </MetricSection>
 
       {/* Success Rate */}
