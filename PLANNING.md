@@ -373,12 +373,14 @@ All controls are housed in a **collapsible left sidebar** (360px width).
 3. The metrics panel shows rolling averages and distributions.
 4. Useful for demonstrating steady-state performance and long-tail behavior under packet loss.
 
-### 7.3 Side-by-Side Split View (optional enhancement)
+### 7.3 Side-by-Side Split View (primary layout — implemented Phase 3)
 
 Two copies of the network rendered left/right:
-- Left: mump2p (RLNC) with rainbow shards.
-- Right: GossipSub with orange packets.
+- Left: mump2p (RLNC) with rainbow shards and relay-active rainbow aura.
+- Right: GossipSub with orange packets and relay-active orange aura.
 - Synchronized simulation clock.
+- Same topology, same node positions.
+- Each canvas filters particles to its own protocol only.
 
 ---
 
@@ -536,22 +538,29 @@ A compact table at the bottom of the metrics panel:
 
 ---
 
-### Phase 3 — Rich Visualization + Comparison Modes
+### Phase 3 — Split Canvas, Visual Fidelity, & Comparison Modes
 
-**Goal:** Full visual fidelity and both comparison modes operational.
+**Goal:** Side-by-side protocol comparison with clear visual distinction and rich node state indicators.
+
+**Key Design Decisions (agreed 2026-02-06):**
+- **Split canvas layout**: Two side-by-side ReactFlow canvases — left shows mump2p (RLNC), right shows GossipSub. Same topology and node positions, synchronized simulation clock. This eliminates the problem of overlapping particles making it impossible to distinguish protocols.
+- **Relay-active "aura" on propagating nodes**: Nodes that are actively sending/relaying get a glowing aura. For RLNC, a rainbow pulse appears as soon as a relay receives its first shard (it can immediately recode and forward — pipelining). For GossipSub, an orange glow appears only after the relay receives the full message (store-and-forward delay). The speed at which the aura wavefront spreads across the network visually demonstrates RLNC's pipelining advantage.
+- **Receiving progress indicators**: RLNC nodes show a progress ring (rank/k filled segments). GossipSub nodes show a binary received/not-received state. This shows that RLNC accumulates information incrementally while GossipSub is all-or-nothing.
 
 **Deliverables:**
-- [ ] Shard reconstruction progress indicators on each node
+- [x] Split-canvas layout (two ReactFlow instances, shared topology, protocol-filtered particles)
+- [x] Protocol labels on each canvas ("mump2p (RLNC)" / "GossipSub")
+- [x] Relay-active glow/aura (rainbow for RLNC relays, orange for GossipSub relays)
+- [x] RLNC receiving progress ring (rank/k segments)
+- [x] GossipSub binary received indicator
 - [ ] Recoding "remix" animation at relay nodes
 - [ ] GossipSub duplicate "waste" visualization
 - [ ] On-Demand ("User Click") mode with dual timers
 - [ ] Continuous Propagation mode with configurable slot time
-- [ ] Ethereum / Solana presets with correct parameters
-- [ ] Metrics sidebar with all charts (Recharts)
-- [ ] Live comparison table
-- [ ] Responsive layout for all breakpoints
+- [ ] Live comparison table enhancements
+- [ ] Keyboard shortcuts (Space = play/pause, R = reset)
 
-**Acceptance criteria:** A non-technical user can toggle between Ethereum/Solana, adjust packet loss, and immediately see the performance difference. All metrics update in real time.
+**Acceptance criteria:** User can clearly see mump2p propagating faster than GossipSub in the split view. The aura wavefront visibly spreads sooner on the RLNC side. Progress rings show incremental RLNC reconstruction. All metrics update in real time.
 
 ---
 

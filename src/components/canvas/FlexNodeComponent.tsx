@@ -14,17 +14,21 @@ import {
   RECONSTRUCTED_GREEN,
   GOSSIP_COLOR,
   ACCENT_TEAL,
+  shardColor,
 } from '@/constants/colors';
 
 export interface FlexNodeData {
   label: string;
   nodeId: string;
+  protocol: 'rlnc' | 'gossipsub';
   [key: string]: unknown;
 }
 
 function FlexNodeComponent({ data }: NodeProps) {
-  const { label, nodeId } = data as unknown as FlexNodeData;
+  const { label, nodeId, protocol } = data as unknown as FlexNodeData;
   const nid = nodeId as string;
+  const isRLNC = protocol === 'rlnc';
+
   const publisherNodeId = useDashboardStore((s) => s.publisherNodeId);
   const k = useDashboardStore((s) => s.k);
   const running = useDashboardStore((s) => s.running);
@@ -33,25 +37,53 @@ function FlexNodeComponent({ data }: NodeProps) {
   const simulationDone = useDashboardStore((s) => s.simulationDone);
 
   // Read engine state directly (re-renders driven by simTime changes)
-  const simTime = useDashboardStore((s) => s.simTime);
+  useDashboardStore((s) => s.simTime);
   const isPublisher = publisherNodeId === nid;
   const hasStarted = publisherNodeId !== null;
 
-  // Only query engine state if simulation has been started
+  // Query engine state
   const rlncRank = hasStarted && !isPublisher ? getRLNCRank(nid) : (isPublisher ? k : 0);
   const rlncDone = hasStarted && !isPublisher ? isRLNCReconstructed(nid) : isPublisher;
   const gossipDone = hasStarted && !isPublisher ? hasGossipMessage(nid) : isPublisher;
-  const rlncProgress = k > 0 ? rlncRank / k : 0;
 
-  // Determine border color
+  // Protocol-specific border color
   let borderColor = NODE_IDLE;
   if (isPublisher) {
     borderColor = NODE_PUBLISHING;
-  } else if (rlncDone) {
-    borderColor = RECONSTRUCTED_GREEN;
-  } else if (gossipDone) {
-    borderColor = GOSSIP_COLOR;
+  } else if (isRLNC) {
+    if (rlncDone) borderColor = RECONSTRUCTED_GREEN;
+    else if (rlncRank > 0) borderColor = ACCENT_TEAL;
+  } else {
+    if (gossipDone) borderColor = GOSSIP_COLOR;
   }
+
+  // Relay-active glow class
+  let glowClass = '';
+  if (hasStarted) {
+    if (isPublisher) {
+      glowClass = 'publisher-glow';
+    } else if (isRLNC && rlncRank > 0) {
+      glowClass = rlncDone ? '' : 'rlnc-relay-glow';
+    } else if (!isRLNC && gossipDone) {
+      glowClass = 'gossip-relay-glow';
+    }
+  }
+
+  // Box shadow for completed states (static, no animation)
+  let boxShadow = 'none';
+  if (isPublisher && hasStarted) {
+    boxShadow = `0 0 16px ${NODE_PUBLISHING}60`;
+  } else if (isRLNC && rlncDone && !isPublisher) {
+    boxShadow = `0 0 14px ${RECONSTRUCTED_GREEN}50`;
+  } else if (!isRLNC && gossipDone && !isPublisher) {
+    boxShadow = `0 0 14px ${GOSSIP_COLOR}50`;
+  }
+
+  // RLNC progress ring calculations
+  const circumference = 2 * Math.PI * 28; // ~175.93
+  const segLength = circumference / k;
+  const gap = 2;
+  const displayRank = Math.min(rlncRank, k);
 
   const handleClick = () => {
     if (comparisonMode === 'click' && !running && !simulationDone) {
@@ -65,52 +97,103 @@ function FlexNodeComponent({ data }: NodeProps) {
       className="relative flex items-center justify-center cursor-pointer group"
       style={{ width: 64, height: 64 }}
     >
-      {/* Outer ring — RLNC progress */}
-      <svg
-        width={64}
-        height={64}
-        className="absolute top-0 left-0"
-        viewBox="0 0 64 64"
-      >
-        <circle
-          cx={32}
-          cy={32}
-          r={28}
-          fill="none"
-          stroke={NODE_IDLE}
-          strokeWidth={3}
-          opacity={0.3}
-        />
-        {rlncProgress > 0 && !isPublisher && (
+      {/* Outer ring — RLNC rainbow progress (only in RLNC canvas) */}
+      {isRLNC && (
+        <svg
+          width={64}
+          height={64}
+          className="absolute top-0 left-0"
+          viewBox="0 0 64 64"
+        >
+          {/* Background ring */}
           <circle
             cx={32}
             cy={32}
             r={28}
             fill="none"
-            stroke={rlncDone ? RECONSTRUCTED_GREEN : ACCENT_TEAL}
+            stroke={NODE_IDLE}
             strokeWidth={3}
-            strokeDasharray={`${rlncProgress * 175.9} ${175.9}`}
-            strokeDashoffset={0}
-            strokeLinecap="round"
-            transform="rotate(-90 32 32)"
-            style={{ transition: 'stroke-dasharray 0.3s ease' }}
+            opacity={0.3}
           />
-        )}
-      </svg>
+          {/* Rainbow progress segments */}
+          {!isPublisher && displayRank > 0 &&
+            Array.from({ length: displayRank }, (_, i) => {
+              const arcLength = segLength - gap;
+              const offset = -(i * segLength + gap / 2);
+              return (
+                <circle
+                  key={i}
+                  cx={32}
+                  cy={32}
+                  r={28}
+                  fill="none"
+                  stroke={rlncDone ? RECONSTRUCTED_GREEN : shardColor(i)}
+                  strokeWidth={3}
+                  strokeDasharray={`${arcLength} ${circumference - arcLength}`}
+                  strokeDashoffset={offset}
+                  strokeLinecap="round"
+                  transform="rotate(-90 32 32)"
+                  style={{ transition: 'stroke-dasharray 0.3s ease, stroke 0.3s ease' }}
+                />
+              );
+            })
+          }
+          {/* Publisher: full ring */}
+          {isPublisher && hasStarted && (
+            <circle
+              cx={32}
+              cy={32}
+              r={28}
+              fill="none"
+              stroke={ACCENT_TEAL}
+              strokeWidth={3}
+              opacity={0.6}
+            />
+          )}
+        </svg>
+      )}
 
-      {/* Inner circle */}
+      {/* GossipSub: simple outer ring (received or not) */}
+      {!isRLNC && (
+        <svg
+          width={64}
+          height={64}
+          className="absolute top-0 left-0"
+          viewBox="0 0 64 64"
+        >
+          <circle
+            cx={32}
+            cy={32}
+            r={28}
+            fill="none"
+            stroke={gossipDone && !isPublisher ? GOSSIP_COLOR : NODE_IDLE}
+            strokeWidth={3}
+            opacity={gossipDone && !isPublisher ? 0.6 : 0.3}
+            style={{ transition: 'stroke 0.3s ease, opacity 0.3s ease' }}
+          />
+          {isPublisher && hasStarted && (
+            <circle
+              cx={32}
+              cy={32}
+              r={28}
+              fill="none"
+              stroke={GOSSIP_COLOR}
+              strokeWidth={3}
+              opacity={0.6}
+            />
+          )}
+        </svg>
+      )}
+
+      {/* Inner circle with relay glow */}
       <div
-        className="rounded-full flex items-center justify-center z-10 transition-all duration-300"
+        className={`rounded-full flex items-center justify-center z-10 transition-all duration-300 ${glowClass}`}
         style={{
           width: 44,
           height: 44,
           backgroundColor: isPublisher ? '#1a1a2e' : '#0f1220',
           border: `2px solid ${borderColor}`,
-          boxShadow: isPublisher
-            ? `0 0 16px ${NODE_PUBLISHING}60`
-            : rlncDone
-              ? `0 0 12px ${RECONSTRUCTED_GREEN}40`
-              : 'none',
+          boxShadow: glowClass ? undefined : boxShadow,
         }}
       >
         <span
@@ -121,16 +204,27 @@ function FlexNodeComponent({ data }: NodeProps) {
         </span>
       </div>
 
-      {/* Status indicator */}
-      {!isPublisher && hasStarted && (rlncDone || gossipDone) && (
+      {/* Status indicator — protocol-specific */}
+      {isRLNC && rlncDone && !isPublisher && hasStarted && (
         <div
           className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold z-20"
           style={{
-            backgroundColor: rlncDone ? RECONSTRUCTED_GREEN : GOSSIP_COLOR,
+            backgroundColor: RECONSTRUCTED_GREEN,
             color: '#000',
           }}
         >
-          {rlncDone ? '\u2713' : '\u2022'}
+          {'\u2713'}
+        </div>
+      )}
+      {!isRLNC && gossipDone && !isPublisher && hasStarted && (
+        <div
+          className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold z-20"
+          style={{
+            backgroundColor: GOSSIP_COLOR,
+            color: '#000',
+          }}
+        >
+          {'\u2713'}
         </div>
       )}
 

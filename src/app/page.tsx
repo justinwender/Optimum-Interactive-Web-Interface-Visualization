@@ -5,7 +5,7 @@ import { useSimulationLoop } from '@/hooks/useSimulationLoop';
 import ControlPanel from '@/components/controls/ControlPanel';
 import MetricsPanel from '@/components/metrics/MetricsPanel';
 import { useDashboardStore } from '@/store';
-import { ACCENT_TEAL, BG_PRIMARY, BG_PANEL, TEXT_PRIMARY, TEXT_SECONDARY } from '@/constants/colors';
+import { ACCENT_TEAL, GOSSIP_COLOR, BG_PRIMARY, BG_PANEL, TEXT_PRIMARY, TEXT_SECONDARY } from '@/constants/colors';
 
 const NetworkCanvas = dynamic(
   () => import('@/components/canvas/NetworkCanvas'),
@@ -69,9 +69,53 @@ export default function Home() {
           <ControlPanel onStep={stepForward} />
         </aside>
 
-        {/* Center — Canvas */}
-        <main className="flex-1 relative overflow-hidden">
-          <NetworkCanvas />
+        {/* Center — Split Canvas */}
+        <main className="flex-1 flex flex-col overflow-hidden relative">
+          <div className="flex flex-1 overflow-hidden">
+            {/* RLNC Canvas */}
+            <div className="flex-1 flex flex-col border-r border-[#1e2840]">
+              <div
+                className="px-3 py-1.5 border-b border-[#1e2840] flex items-center justify-center gap-2"
+                style={{ backgroundColor: `${BG_PANEL}CC` }}
+              >
+                <div
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: ACCENT_TEAL }}
+                />
+                <span
+                  className="text-[11px] font-semibold tracking-wide"
+                  style={{ color: ACCENT_TEAL }}
+                >
+                  mump2p (RLNC)
+                </span>
+              </div>
+              <div className="flex-1">
+                <NetworkCanvas protocol="rlnc" />
+              </div>
+            </div>
+
+            {/* GossipSub Canvas */}
+            <div className="flex-1 flex flex-col">
+              <div
+                className="px-3 py-1.5 border-b border-[#1e2840] flex items-center justify-center gap-2"
+                style={{ backgroundColor: `${BG_PANEL}CC` }}
+              >
+                <div
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: GOSSIP_COLOR }}
+                />
+                <span
+                  className="text-[11px] font-semibold tracking-wide"
+                  style={{ color: GOSSIP_COLOR }}
+                >
+                  GossipSub
+                </span>
+              </div>
+              <div className="flex-1">
+                <NetworkCanvas protocol="gossipsub" />
+              </div>
+            </div>
+          </div>
 
           {/* Status bar overlay */}
           <div

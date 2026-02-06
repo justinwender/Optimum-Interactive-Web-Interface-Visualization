@@ -1,11 +1,10 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
-  Controls,
   type Node,
   type Edge as FlowEdge,
 } from '@xyflow/react';
@@ -24,21 +23,25 @@ const edgeTypes = {
   animated: AnimatedEdge,
 };
 
-export default function NetworkCanvas() {
+interface NetworkCanvasProps {
+  protocol: 'rlnc' | 'gossipsub';
+}
+
+export default function NetworkCanvas({ protocol }: NetworkCanvasProps) {
   const nodes = useDashboardStore((s) => s.nodes);
   const edges = useDashboardStore((s) => s.edges);
 
-  // Convert simulation nodes to React Flow nodes
+  // Convert simulation nodes to React Flow nodes, passing protocol in data
   const flowNodes: Node[] = useMemo(
     () =>
       nodes.map((n) => ({
         id: n.id,
         type: 'flexNode',
         position: n.position,
-        data: { label: n.label, nodeId: n.id },
+        data: { label: n.label, nodeId: n.id, protocol },
         draggable: true,
       })),
-    [nodes],
+    [nodes, protocol],
   );
 
   // Convert simulation edges to React Flow edges (deduplicated — one per pair)
@@ -60,7 +63,7 @@ export default function NetworkCanvas() {
   }, [edges]);
 
   return (
-    <div className="relative w-full h-full" style={{ minHeight: 500 }}>
+    <div className="relative w-full h-full" style={{ minHeight: 300 }}>
       <ReactFlow
         nodes={flowNodes}
         edges={flowEdges}
@@ -82,11 +85,7 @@ export default function NetworkCanvas() {
           size={1}
           color="#1a2235"
         />
-        <Controls
-          showInteractive={false}
-          className="!bg-[#141A26] !border-[#2a3450] !shadow-lg [&>button]:!bg-[#141A26] [&>button]:!border-[#2a3450] [&>button]:!text-[#9AA0A6] [&>button:hover]:!bg-[#1e2840]"
-        />
-        <ParticleOverlay />
+        <ParticleOverlay protocol={protocol} />
       </ReactFlow>
     </div>
   );

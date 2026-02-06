@@ -4,28 +4,32 @@ import { useDashboardStore } from '@/store';
 import { shardColor, GOSSIP_COLOR } from '@/constants/colors';
 import { useReactFlow } from '@xyflow/react';
 
+interface ParticleOverlayProps {
+  protocol: 'rlnc' | 'gossipsub';
+}
+
 /**
  * Renders animated particles on top of the React Flow canvas.
- * Each particle travels from source node to target node along a straight line.
+ * Filters particles to only show those matching the given protocol.
  */
-export default function ParticleOverlay() {
+export default function ParticleOverlay({ protocol }: ParticleOverlayProps) {
   const particles = useDashboardStore((s) => s.particles);
-  const nodes = useDashboardStore((s) => s.nodes);
   const { getNode } = useReactFlow();
 
-  if (particles.length === 0) return null;
+  const filtered = particles.filter((p) => p.protocol === protocol);
+  if (filtered.length === 0) return null;
 
   return (
     <svg
       className="absolute inset-0 pointer-events-none z-10"
       style={{ width: '100%', height: '100%' }}
     >
-      {particles.map((particle) => {
+      {filtered.map((particle) => {
         const sourceFlowNode = getNode(particle.fromNode);
         const targetFlowNode = getNode(particle.toNode);
         if (!sourceFlowNode || !targetFlowNode) return null;
 
-        const sx = (sourceFlowNode.position?.x ?? 0) + 32; // center of 64px node
+        const sx = (sourceFlowNode.position?.x ?? 0) + 32;
         const sy = (sourceFlowNode.position?.y ?? 0) + 32;
         const tx = (targetFlowNode.position?.x ?? 0) + 32;
         const ty = (targetFlowNode.position?.y ?? 0) + 32;
@@ -49,7 +53,6 @@ export default function ParticleOverlay() {
             fill={color}
             opacity={particle.dropped ? 0.2 : 0.9}
           >
-            {/* Glow effect */}
             <animate
               attributeName="r"
               values={`${radius};${radius + 1.5};${radius}`}
