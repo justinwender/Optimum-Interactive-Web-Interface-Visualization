@@ -6,6 +6,14 @@
  * to process events that have fired.
  *
  * Both protocols share the same timeline for fair comparison.
+ *
+ * Key behaviors:
+ * - RLNC: Publisher sends loss-compensated burst. Relays continuously
+ *   generate new coded shards (2 per incoming) and schedule periodic
+ *   recode pushes. This models real RLNC's continuous coding.
+ * - GossipSub: Store-and-forward with heartbeat-based retransmission.
+ *   Nodes retry sending to neighbors that haven't received, modeling
+ *   the IHAVE/IWANT gossip protocol.
  */
 
 import type { AnimatedParticle, Edge } from './types';
@@ -46,7 +54,17 @@ const rlncNodeDeliveryTime = new Map<string, number>();
 // Per-node last GossipSub delivery time (simulated ms)
 const gossipNodeDeliveryTime = new Map<string, number>();
 
-// Accumulated metrics (kept here for atomic updates, pushed to store periodically)
+// RLNC: track how many recode rounds each relay has done (cap to prevent explosion)
+const rlncRecodePushes = new Map<string, number>();
+const MAX_RLNC_PUSHES_PER_NODE = 6; // max recode push rounds per relay
+const RLNC_PUSH_INTERVAL = 3; // ms between push rounds
+
+// GossipSub: track retry count per node
+const gossipRetries = new Map<string, number>();
+const MAX_GOSSIP_RETRIES = 2;
+const GOSSIP_RETRY_INTERVAL = 80; // ms between retries
+
+// Accumulated metrics
 export interface EngineMetrics {
   rlnc: {
     totalTransmissions: number;
@@ -69,6 +87,8 @@ let metrics: EngineMetrics = emptyEngineMetrics();
 let subscriberIds: string[] = [];
 let publisherId: string | null = null;
 let simK = 4;
+let simLossRate = 0;
+let simNodes: { id: string; neighbors: string[] }[] = [];
 
 function emptyEngineMetrics(): EngineMetrics {
   return {
@@ -114,9 +134,13 @@ export function initPropagation(params: InitParams): void {
   gossipForwarded.clear();
   rlncNodeDeliveryTime.clear();
   gossipNodeDeliveryTime.clear();
+  rlncRecodePushes.clear();
+  gossipRetries.clear();
   metrics = emptyEngineMetrics();
   publisherId = publisherNodeId;
   simK = k;
+  simLossRate = packetLoss / 100;
+  simNodes = nodes;
 
   // Build edge lookup
   edgeLookup = new Map();
@@ -140,10 +164,17 @@ export function initPropagation(params: InitParams): void {
   const publisher = nodes.find((n) => n.id === publisherNodeId);
   if (!publisher) return;
 
-  const lossRate = packetLoss / 100;
-  const totalShards = Math.ceil(k * redundancyFactor);
+  const lossRate = simLossRate;
 
-  // ── RLNC: publisher sends coded shards to all neighbors ──
+  // ── RLNC: publisher sends coded shards, compensating for packet loss ──
+  // Real RLNC publishers continuously generate coded shards. We model this
+  // as an initial burst scaled by loss rate, ensuring enough shards survive.
+  const lossCompensation = lossRate > 0 ? 1 / Math.max(1 - lossRate, 0.15) : 1;
+  const totalShards = Math.min(
+    Math.ceil(k * redundancyFactor * lossCompensation),
+    k * 4, // cap to prevent excessive events
+  );
+
   for (let s = 0; s < totalShards; s++) {
     const codingVector = Array.from({ length: k }, () => gfRandom(random));
 
@@ -185,6 +216,25 @@ export function initPropagation(params: InitParams): void {
       dropped,
     });
   }
+
+  // ── GossipSub: publisher retries (models heartbeat retransmission) ──
+  for (let retry = 1; retry <= MAX_GOSSIP_RETRIES; retry++) {
+    for (const neighborId of publisher.neighbors) {
+      const edge = edgeLookup.get(`${publisherNodeId}->${neighborId}`);
+      if (!edge) continue;
+
+      const dropped = random() < lossRate;
+      eventQueue.push({
+        fireAt: edge.latencyMs + retry * GOSSIP_RETRY_INTERVAL,
+        seq: 0,
+        protocol: 'gossipsub',
+        type: 'message_arrive',
+        fromNode: publisherNodeId,
+        toNode: neighborId,
+        dropped,
+      });
+    }
+  }
 }
 
 /**
@@ -222,7 +272,6 @@ export function advanceTo(
     subscriberIds.every((id) => gossipReceived.has(id));
 
   // Compute last delivery times (max across all nodes that DID receive)
-  // Always update — don't wait for allDone, so partial delivery still shows latency
   if (rlncNodeDeliveryTime.size > 0) {
     let maxTime = 0;
     for (const t of rlncNodeDeliveryTime.values()) {
@@ -283,8 +332,15 @@ function processRLNC(
   }
 
   // Recode and forward to neighbors (relay behavior)
+  // In real RLNC, relays continuously generate new coded shards.
+  // We model this by sending 2 coded shards per incoming shard,
+  // plus scheduling periodic recode pushes.
   const node = nodes.find((n) => n.id === event.toNode);
   if (!node) return;
+
+  const pushCount = rlncRecodePushes.get(event.toNode) ?? 0;
+  if (pushCount >= MAX_RLNC_PUSHES_PER_NODE) return;
+  rlncRecodePushes.set(event.toNode, pushCount + 1);
 
   for (const neighborId of node.neighbors) {
     if (neighborId === event.fromNode) continue;
@@ -295,21 +351,24 @@ function processRLNC(
     const neighborEdge = edgeLookup.get(`${event.toNode}->${neighborId}`);
     if (!neighborEdge) continue;
 
-    // Recode: fresh random coding vector
-    const recodedVector = Array.from({ length: simK }, () => gfRandom(random));
-    const dropped = random() < lossRate;
+    // Send 2 coded shards: immediate recode + delayed push
+    // This models continuous recoding behavior
+    for (let batch = 0; batch < 2; batch++) {
+      const recodedVector = Array.from({ length: simK }, () => gfRandom(random));
+      const dropped = random() < lossRate;
 
-    eventQueue.push({
-      fireAt: event.fireAt + neighborEdge.latencyMs + 0.5, // +0.5ms recode delay
-      seq: 0,
-      protocol: 'rlnc',
-      type: 'shard_arrive',
-      fromNode: event.toNode,
-      toNode: neighborId,
-      shardIndex: event.shardIndex,
-      codingVector: recodedVector,
-      dropped,
-    });
+      eventQueue.push({
+        fireAt: event.fireAt + neighborEdge.latencyMs + 0.5 + batch * RLNC_PUSH_INTERVAL,
+        seq: 0,
+        protocol: 'rlnc',
+        type: 'shard_arrive',
+        fromNode: event.toNode,
+        toNode: neighborId,
+        shardIndex: (event.shardIndex ?? 0) + batch * 100,
+        codingVector: recodedVector,
+        dropped,
+      });
+    }
   }
 }
 
@@ -356,6 +415,8 @@ function processGossip(
   const node = nodes.find((n) => n.id === event.toNode);
   if (!node) return;
 
+  const storeForwardDelay = simK * 1.5 + 1;
+
   for (const neighborId of node.neighbors) {
     if (neighborId === event.fromNode) continue;
 
@@ -363,10 +424,6 @@ function processGossip(
     if (!neighborEdge) continue;
 
     const dropped = random() < lossRate;
-    // Store-and-forward: relay must receive FULL message, validate, then re-serialize.
-    // This takes time proportional to message size (~k shards worth of data).
-    // RLNC relays only need one shard to recode and forward (0.5ms).
-    const storeForwardDelay = simK * 1.5 + 1; // receive + validate + re-serialize
     eventQueue.push({
       fireAt: event.fireAt + neighborEdge.latencyMs + storeForwardDelay,
       seq: 0,
@@ -376,6 +433,30 @@ function processGossip(
       toNode: neighborId,
       dropped,
     });
+  }
+
+  // Schedule retransmission retries (models IHAVE/IWANT heartbeat)
+  // Nodes that received the message retry to ALL neighbors in case
+  // previous deliveries were dropped.
+  const retryCount = gossipRetries.get(event.toNode) ?? 0;
+  if (retryCount < MAX_GOSSIP_RETRIES) {
+    gossipRetries.set(event.toNode, retryCount + 1);
+
+    for (const neighborId of node.neighbors) {
+      const neighborEdge = edgeLookup.get(`${event.toNode}->${neighborId}`);
+      if (!neighborEdge) continue;
+
+      const dropped = random() < lossRate;
+      eventQueue.push({
+        fireAt: event.fireAt + GOSSIP_RETRY_INTERVAL + neighborEdge.latencyMs + storeForwardDelay,
+        seq: 0,
+        protocol: 'gossipsub',
+        type: 'message_arrive',
+        fromNode: event.toNode,
+        toNode: neighborId,
+        dropped,
+      });
+    }
   }
 }
 
@@ -413,7 +494,10 @@ export function clearEngine(): void {
   gossipForwarded.clear();
   rlncNodeDeliveryTime.clear();
   gossipNodeDeliveryTime.clear();
+  rlncRecodePushes.clear();
+  gossipRetries.clear();
   metrics = emptyEngineMetrics();
   subscriberIds = [];
   publisherId = null;
+  simNodes = [];
 }

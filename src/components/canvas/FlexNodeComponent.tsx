@@ -57,26 +57,30 @@ function FlexNodeComponent({ data }: NodeProps) {
     if (gossipDone) borderColor = GOSSIP_COLOR;
   }
 
-  // Relay-active glow class
+  // Propagating glow (animated outer aura) — nodes actively sending data
+  // RLNC relays propagate from first shard onward (even after reconstruction)
+  // GossipSub relays propagate after receiving the full message
   let glowClass = '';
-  if (hasStarted) {
+  if (hasStarted && !simulationDone) {
     if (isPublisher) {
       glowClass = 'publisher-glow';
     } else if (isRLNC && rlncRank > 0) {
-      glowClass = rlncDone ? '' : 'rlnc-relay-glow';
+      glowClass = 'rlnc-relay-glow';
     } else if (!isRLNC && gossipDone) {
       glowClass = 'gossip-relay-glow';
     }
   }
 
-  // Box shadow for completed states (static, no animation)
-  let boxShadow = 'none';
-  if (isPublisher && hasStarted) {
-    boxShadow = `0 0 16px ${NODE_PUBLISHING}60`;
-  } else if (isRLNC && rlncDone && !isPublisher) {
-    boxShadow = `0 0 14px ${RECONSTRUCTED_GREEN}50`;
-  } else if (!isRLNC && gossipDone && !isPublisher) {
-    boxShadow = `0 0 14px ${GOSSIP_COLOR}50`;
+  // Receiving fill — inner glow that fills up as data arrives
+  let receivingProgress = 0;
+  let receivingColor = isRLNC ? ACCENT_TEAL : GOSSIP_COLOR;
+  if (!isPublisher && hasStarted) {
+    if (isRLNC) {
+      receivingProgress = Math.min(rlncRank / k, 1);
+      if (rlncDone) receivingColor = RECONSTRUCTED_GREEN;
+    } else {
+      receivingProgress = gossipDone ? 1 : 0;
+    }
   }
 
   // RLNC progress ring calculations
@@ -185,20 +189,32 @@ function FlexNodeComponent({ data }: NodeProps) {
         </svg>
       )}
 
-      {/* Inner circle with relay glow */}
+      {/* Inner circle with propagating glow + receiving fill */}
       <div
-        className={`rounded-full flex items-center justify-center z-10 transition-all duration-300 ${glowClass}`}
+        className={`rounded-full flex items-center justify-center z-10 ${glowClass}`}
         style={{
           width: 44,
           height: 44,
           backgroundColor: isPublisher ? '#1a1a2e' : '#0f1220',
           border: `2px solid ${borderColor}`,
-          boxShadow: glowClass ? undefined : boxShadow,
+          position: 'relative',
+          transition: 'border-color 0.3s ease',
         }}
       >
+        {/* Receiving fill overlay — fills up as data arrives */}
+        {!isPublisher && hasStarted && receivingProgress > 0 && (
+          <div
+            className="absolute inset-0 rounded-full pointer-events-none"
+            style={{
+              backgroundColor: receivingColor,
+              opacity: receivingProgress * 0.35,
+              transition: 'opacity 0.3s ease, background-color 0.3s ease',
+            }}
+          />
+        )}
         <span
-          className="text-xs font-bold select-none"
-          style={{ color: borderColor }}
+          className="text-xs font-bold select-none relative"
+          style={{ color: borderColor, zIndex: 1 }}
         >
           {label as string}
         </span>

@@ -27,6 +27,7 @@ body {
 
 .react-flow__node {
   cursor: pointer;
+  overflow: visible !important;
 }
 
 /* Slider styling */
@@ -80,22 +81,22 @@ input[type='range']::-moz-range-thumb {
 /* ── Relay-active glow animations ── */
 
 @keyframes rlnc-relay-glow {
-  0%, 100% { box-shadow: 0 0 18px 6px rgba(255, 0, 0, 0.3); }
-  17% { box-shadow: 0 0 18px 6px rgba(255, 127, 0, 0.3); }
-  33% { box-shadow: 0 0 18px 6px rgba(255, 255, 0, 0.25); }
-  50% { box-shadow: 0 0 18px 6px rgba(0, 200, 0, 0.3); }
-  67% { box-shadow: 0 0 18px 6px rgba(0, 100, 255, 0.3); }
-  83% { box-shadow: 0 0 18px 6px rgba(139, 0, 255, 0.3); }
+  0%, 100% { box-shadow: 0 0 20px 8px rgba(255, 0, 0, 0.45); }
+  17% { box-shadow: 0 0 20px 8px rgba(255, 127, 0, 0.45); }
+  33% { box-shadow: 0 0 20px 8px rgba(255, 255, 0, 0.35); }
+  50% { box-shadow: 0 0 20px 8px rgba(0, 200, 0, 0.45); }
+  67% { box-shadow: 0 0 20px 8px rgba(0, 100, 255, 0.45); }
+  83% { box-shadow: 0 0 20px 8px rgba(139, 0, 255, 0.45); }
 }
 
 @keyframes gossip-relay-glow {
-  0%, 100% { box-shadow: 0 0 14px 5px rgba(255, 140, 0, 0.2); }
-  50% { box-shadow: 0 0 22px 8px rgba(255, 140, 0, 0.4); }
+  0%, 100% { box-shadow: 0 0 18px 7px rgba(255, 140, 0, 0.35); }
+  50% { box-shadow: 0 0 26px 11px rgba(255, 140, 0, 0.55); }
 }
 
 @keyframes publisher-glow {
-  0%, 100% { box-shadow: 0 0 16px 6px rgba(255, 255, 255, 0.2); }
-  50% { box-shadow: 0 0 24px 10px rgba(255, 255, 255, 0.35); }
+  0%, 100% { box-shadow: 0 0 20px 8px rgba(255, 255, 255, 0.3); }
+  50% { box-shadow: 0 0 30px 13px rgba(255, 255, 255, 0.45); }
 }
 
 .rlnc-relay-glow {
