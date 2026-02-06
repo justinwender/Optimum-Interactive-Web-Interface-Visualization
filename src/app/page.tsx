@@ -2,8 +2,10 @@
 
 import dynamic from 'next/dynamic';
 import { useSimulationLoop } from '@/hooks/useSimulationLoop';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import ControlPanel from '@/components/controls/ControlPanel';
 import MetricsPanel from '@/components/metrics/MetricsPanel';
+import RaceTimer from '@/components/canvas/RaceTimer';
 import { useDashboardStore } from '@/store';
 import { ACCENT_TEAL, GOSSIP_COLOR, BG_PRIMARY, BG_PANEL, TEXT_PRIMARY, TEXT_SECONDARY } from '@/constants/colors';
 
@@ -13,9 +15,11 @@ const NetworkCanvas = dynamic(
 );
 
 export default function Home() {
-  const { stepForward } = useSimulationLoop();
+  const { stepForward, cancelAutoRestart } = useSimulationLoop();
+  useKeyboardShortcuts(stepForward);
 
   const running = useDashboardStore((s) => s.running);
+  const comparisonMode = useDashboardStore((s) => s.comparisonMode);
   const nodeCount = useDashboardStore((s) => s.nodeCount);
   const packetLoss = useDashboardStore((s) => s.packetLoss);
   const networkPreset = useDashboardStore((s) => s.networkPreset);
@@ -66,7 +70,7 @@ export default function Home() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar — Controls */}
         <aside className="w-72 flex-shrink-0 border-r border-[#1e2840] overflow-hidden">
-          <ControlPanel onStep={stepForward} />
+          <ControlPanel onStep={stepForward} onReset={cancelAutoRestart} />
         </aside>
 
         {/* Center — Split Canvas */}
@@ -89,8 +93,9 @@ export default function Home() {
                   mump2p (RLNC)
                 </span>
               </div>
-              <div className="flex-1">
+              <div className="flex-1 relative">
                 <NetworkCanvas protocol="rlnc" />
+                <RaceTimer protocol="rlnc" />
               </div>
             </div>
 
@@ -111,8 +116,9 @@ export default function Home() {
                   GossipSub
                 </span>
               </div>
-              <div className="flex-1">
+              <div className="flex-1 relative">
                 <NetworkCanvas protocol="gossipsub" />
+                <RaceTimer protocol="gossipsub" />
               </div>
             </div>
           </div>
@@ -135,7 +141,9 @@ export default function Home() {
               {simTime > 0 && <span className="font-mono">{simTime.toFixed(1)}ms sim</span>}
             </div>
             <p className="text-[10px]" style={{ color: TEXT_SECONDARY }}>
-              {simulationDone ? 'Reset to run again' : 'Click any node to start propagation'}
+              {simulationDone
+                ? (comparisonMode === 'continuous' ? 'Next round starting...' : 'Press R to reset')
+                : (comparisonMode === 'click' ? 'Click any node to start propagation' : 'Press Space to pause')}
             </p>
           </div>
         </main>

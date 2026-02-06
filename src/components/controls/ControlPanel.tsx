@@ -8,9 +8,10 @@ import { ACCENT_TEAL, BG_PANEL, TEXT_PRIMARY, TEXT_SECONDARY } from '@/constants
 
 interface ControlPanelProps {
   onStep?: () => void;
+  onReset?: () => void;
 }
 
-export default function ControlPanel({ onStep }: ControlPanelProps) {
+export default function ControlPanel({ onStep, onReset }: ControlPanelProps) {
   const nodeCount = useDashboardStore((s) => s.nodeCount);
   const packetLoss = useDashboardStore((s) => s.packetLoss);
   const networkPreset = useDashboardStore((s) => s.networkPreset);
@@ -33,10 +34,18 @@ export default function ControlPanel({ onStep }: ControlPanelProps) {
   const regenerateTopology = useDashboardStore((s) => s.regenerateTopology);
   const resetSimulation = useDashboardStore((s) => s.resetSimulation);
   const setRunning = useDashboardStore((s) => s.setRunning);
+  const startPropagation = useDashboardStore((s) => s.startPropagation);
+  const nodes = useDashboardStore((s) => s.nodes);
 
   const handleReset = () => {
+    onReset?.();
     clearEngine();
     resetSimulation();
+  };
+
+  const handleStartContinuous = () => {
+    const randomIdx = Math.floor(Math.random() * nodes.length);
+    startPropagation(nodes[randomIdx].id);
   };
 
   const canModifyNetwork = !running && !publisherNodeId;
@@ -169,7 +178,7 @@ export default function ControlPanel({ onStep }: ControlPanelProps) {
         <p className="text-[10px] mt-1.5" style={{ color: TEXT_SECONDARY }}>
           {comparisonMode === 'click'
             ? 'Click a node to publish data from it'
-            : 'Auto-publishes every slot interval'}
+            : 'Auto-publishes with random publisher, repeating'}
         </p>
       </Section>
 
@@ -209,6 +218,14 @@ export default function ControlPanel({ onStep }: ControlPanelProps) {
         </div>
       </details>
 
+      {/* Keyboard shortcuts hint */}
+      <div className="text-[9px] leading-relaxed" style={{ color: TEXT_SECONDARY }}>
+        <span className="font-medium">Shortcuts:</span>{' '}
+        <kbd className="px-1 py-0.5 rounded bg-[#1e2840] text-[8px]">Space</kbd> play/pause{' '}
+        <kbd className="px-1 py-0.5 rounded bg-[#1e2840] text-[8px]">R</kbd> reset{' '}
+        <kbd className="px-1 py-0.5 rounded bg-[#1e2840] text-[8px]">S</kbd> step
+      </div>
+
       {/* Simulation Controls */}
       <div className="flex flex-col gap-2 mt-auto pt-4 border-t border-[#2a3450]">
         {/* Sim time display */}
@@ -235,11 +252,21 @@ export default function ControlPanel({ onStep }: ControlPanelProps) {
             >
               Resume
             </button>
+          ) : comparisonMode === 'continuous' && !publisherNodeId ? (
+            <button
+              onClick={handleStartContinuous}
+              className="flex-1 px-4 py-2 rounded text-xs font-bold transition-colors"
+              style={{ backgroundColor: `${ACCENT_TEAL}20`, color: ACCENT_TEAL, border: `1px solid ${ACCENT_TEAL}40` }}
+            >
+              Start Continuous
+            </button>
           ) : (
             <div className="flex-1 px-4 py-2 rounded text-xs font-bold text-center"
               style={{ backgroundColor: '#1e2840', color: TEXT_SECONDARY }}
             >
-              {simulationDone ? 'Done' : 'Click a node'}
+              {simulationDone
+                ? (comparisonMode === 'continuous' ? 'Restarting...' : 'Done')
+                : 'Click a node'}
             </div>
           )}
 

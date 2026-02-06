@@ -16,11 +16,21 @@ import {
  * Maintains a `simTime` counter (simulated ms, starting at 0).
  * Each frame advances simTime by `realDeltaMs * speed`, then processes
  * all engine events up to that point and updates particle positions.
+ *
+ * In continuous mode, auto-restarts with a new random publisher after completion.
  */
 export function useSimulationLoop() {
   const rafRef = useRef<number | null>(null);
   const lastFrameRef = useRef<number>(0);
   const initializedRef = useRef(false);
+  const autoRestartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelAutoRestart = useCallback(() => {
+    if (autoRestartRef.current !== null) {
+      clearTimeout(autoRestartRef.current);
+      autoRestartRef.current = null;
+    }
+  }, []);
 
   const tick = useCallback((timestamp: number) => {
     const store = useDashboardStore.getState();
@@ -44,7 +54,7 @@ export function useSimulationLoop() {
     }
 
     // Compute real elapsed time and advance simulated time
-    const realDeltaMs = Math.min(timestamp - lastFrameRef.current, 50); // Cap at 50ms to avoid spiral
+    const realDeltaMs = Math.min(timestamp - lastFrameRef.current, 50);
     lastFrameRef.current = timestamp;
 
     const simDelta = realDeltaMs * store.speed;
@@ -81,6 +91,20 @@ export function useSimulationLoop() {
       store.setSimulationDone(true);
       initializedRef.current = false;
       rafRef.current = null;
+
+      // Auto-restart in continuous mode
+      if (store.comparisonMode === 'continuous') {
+        autoRestartRef.current = setTimeout(() => {
+          autoRestartRef.current = null;
+          const state = useDashboardStore.getState();
+          // Only restart if still in continuous mode and not manually reset
+          if (state.comparisonMode !== 'continuous' || !state.simulationDone) return;
+          clearEngine();
+          const randomIdx = Math.floor(Math.random() * state.nodes.length);
+          state.startPropagation(state.nodes[randomIdx].id);
+        }, 2000);
+      }
+
       return;
     }
 
@@ -108,7 +132,7 @@ export function useSimulationLoop() {
     const nextTime = nextEventTime();
     if (nextTime === null) return;
 
-    const targetSimTime = nextTime + 0.001; // Just past the event
+    const targetSimTime = nextTime + 0.001;
 
     const { newParticles, metrics } = advanceTo(
       targetSimTime,
@@ -140,10 +164,8 @@ export function useSimulationLoop() {
 
   useEffect(() => {
     if (running && publisherNodeId) {
+      cancelAutoRestart();
       lastFrameRef.current = performance.now();
-      if (!initializedRef.current) {
-        // Will initialize on first tick
-      }
       rafRef.current = requestAnimationFrame(tick);
     }
     return () => {
@@ -152,17 +174,18 @@ export function useSimulationLoop() {
         rafRef.current = null;
       }
     };
-  }, [running, publisherNodeId, tick]);
+  }, [running, publisherNodeId, tick, cancelAutoRestart]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      cancelAutoRestart();
       clearEngine();
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
       }
     };
-  }, []);
+  }, [cancelAutoRestart]);
 
-  return { stepForward };
+  return { stepForward, cancelAutoRestart };
 }
