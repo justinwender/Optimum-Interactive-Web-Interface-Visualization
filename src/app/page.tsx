@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useSimulationLoop } from '@/hooks/useSimulationLoop';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
@@ -16,10 +17,19 @@ const NetworkCanvas = dynamic(
   { ssr: false },
 );
 
+const GlobeView = dynamic(
+  () => import('@/components/canvas/GlobeView'),
+  { ssr: false },
+);
+
+type ViewMode = '2d' | '3d';
+
 export default function Home() {
   const { stepForward, cancelAutoRestart } = useSimulationLoop();
   useKeyboardShortcuts(stepForward);
   useUrlState();
+
+  const [viewMode, setViewMode] = useState<ViewMode>('2d');
 
   const running = useDashboardStore((s) => s.running);
   const comparisonMode = useDashboardStore((s) => s.comparisonMode);
@@ -56,6 +66,31 @@ export default function Home() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {/* View mode toggle */}
+          <div className="flex rounded-full overflow-hidden border border-[#2a3450]">
+            <button
+              onClick={() => setViewMode('2d')}
+              className="text-[10px] px-2.5 py-1 font-medium transition-colors"
+              style={{
+                backgroundColor: viewMode === '2d' ? ACCENT_TEAL : '#1e2840',
+                color: viewMode === '2d' ? '#000' : TEXT_SECONDARY,
+              }}
+              aria-label="Switch to 2D split view"
+            >
+              2D Split
+            </button>
+            <button
+              onClick={() => setViewMode('3d')}
+              className="text-[10px] px-2.5 py-1 font-medium transition-colors"
+              style={{
+                backgroundColor: viewMode === '3d' ? ACCENT_TEAL : '#1e2840',
+                color: viewMode === '3d' ? '#000' : TEXT_SECONDARY,
+              }}
+              aria-label="Switch to 3D globe view"
+            >
+              3D Globe
+            </button>
+          </div>
           <span
             className="text-[10px] px-2.5 py-1 rounded-full font-medium"
             style={{
@@ -93,57 +128,67 @@ export default function Home() {
           <ControlPanel onStep={stepForward} onReset={cancelAutoRestart} />
         </aside>
 
-        {/* Center — Split Canvas */}
+        {/* Center — Canvas area */}
         <main className="flex-1 flex flex-col overflow-hidden relative" role="main" aria-label="Network visualization">
           {/* Slot Timeline — visible in continuous mode */}
           <SlotTimeline />
-          <div className="flex flex-1 overflow-hidden">
-            {/* RLNC Canvas */}
-            <div className="flex-1 flex flex-col border-r border-[#1e2840]" role="region" aria-label="mump2p RLNC network visualization">
-              <div
-                className="px-3 py-1.5 border-b border-[#1e2840] flex items-center justify-center gap-2"
-                style={{ backgroundColor: `${BG_PANEL}CC` }}
-              >
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: ACCENT_TEAL }}
-                />
-                <span
-                  className="text-[11px] font-semibold tracking-wide"
-                  style={{ color: ACCENT_TEAL }}
-                >
-                  mump2p (RLNC)
-                </span>
-              </div>
-              <div className="flex-1 relative">
-                <NetworkCanvas protocol="rlnc" />
-                <RaceTimer protocol="rlnc" />
-              </div>
-            </div>
 
-            {/* GossipSub Canvas */}
-            <div className="flex-1 flex flex-col" role="region" aria-label="GossipSub network visualization">
-              <div
-                className="px-3 py-1.5 border-b border-[#1e2840] flex items-center justify-center gap-2"
-                style={{ backgroundColor: `${BG_PANEL}CC` }}
-              >
+          {viewMode === '2d' ? (
+            /* 2D Split Canvas */
+            <div className="flex flex-1 overflow-hidden">
+              {/* RLNC Canvas */}
+              <div className="flex-1 flex flex-col border-r border-[#1e2840]" role="region" aria-label="mump2p RLNC network visualization">
                 <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: GOSSIP_COLOR }}
-                />
-                <span
-                  className="text-[11px] font-semibold tracking-wide"
-                  style={{ color: GOSSIP_COLOR }}
+                  className="px-3 py-1.5 border-b border-[#1e2840] flex items-center justify-center gap-2"
+                  style={{ backgroundColor: `${BG_PANEL}CC` }}
                 >
-                  GossipSub
-                </span>
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: ACCENT_TEAL }}
+                  />
+                  <span
+                    className="text-[11px] font-semibold tracking-wide"
+                    style={{ color: ACCENT_TEAL }}
+                  >
+                    mump2p (RLNC)
+                  </span>
+                </div>
+                <div className="flex-1 relative">
+                  <NetworkCanvas protocol="rlnc" />
+                  <RaceTimer protocol="rlnc" />
+                </div>
               </div>
-              <div className="flex-1 relative">
-                <NetworkCanvas protocol="gossipsub" />
-                <RaceTimer protocol="gossipsub" />
+
+              {/* GossipSub Canvas */}
+              <div className="flex-1 flex flex-col" role="region" aria-label="GossipSub network visualization">
+                <div
+                  className="px-3 py-1.5 border-b border-[#1e2840] flex items-center justify-center gap-2"
+                  style={{ backgroundColor: `${BG_PANEL}CC` }}
+                >
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: GOSSIP_COLOR }}
+                  />
+                  <span
+                    className="text-[11px] font-semibold tracking-wide"
+                    style={{ color: GOSSIP_COLOR }}
+                  >
+                    GossipSub
+                  </span>
+                </div>
+                <div className="flex-1 relative">
+                  <NetworkCanvas protocol="gossipsub" />
+                  <RaceTimer protocol="gossipsub" />
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            /* 3D Globe View */
+            <div className="flex-1 relative" role="region" aria-label="3D globe network visualization">
+              <GlobeView />
+              <RaceTimer protocol="rlnc" />
+            </div>
+          )}
 
           {/* Status bar overlay */}
           <div
