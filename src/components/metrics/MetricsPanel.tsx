@@ -84,7 +84,7 @@ export default function MetricsPanel() {
       </div>
 
       {/* Latency */}
-      <MetricSection title="Latency (simulated)">
+      <MetricSection title="Latency (simulated)" tooltip="Simulated time for the block to propagate from proposer to all validators. Lower is better.">
         <DualBar
           label="Full delivery time"
           rlncValue={rlncDeliveryTime}
@@ -134,7 +134,7 @@ export default function MetricsPanel() {
       </MetricSection>
 
       {/* Bandwidth */}
-      <MetricSection title="Bandwidth">
+      <MetricSection title="Bandwidth" tooltip="Overhead ratio = total transmissions / useful transmissions. RLNC's algebraic redundancy is more efficient than GossipSub's duplicate-heavy approach.">
         <div className="space-y-2">
           <MetricRow
             label="Total Transmissions"
@@ -216,38 +216,18 @@ export default function MetricsPanel() {
         </MetricSection>
       )}
 
-      {/* Comparison Table */}
+      {/* Live Comparison Table */}
       {!isIdle && simulationDone && (
-        <MetricSection title="Summary">
-          <div className="rounded border border-[#2a3450] overflow-hidden">
-            <table className="w-full text-[10px]">
-              <thead>
-                <tr className="border-b border-[#2a3450]">
-                  <th className="text-left p-2 font-medium" style={{ color: TEXT_SECONDARY }}>Metric</th>
-                  <th className="text-right p-2 font-medium" style={{ color: RECONSTRUCTED_GREEN }}>mump2p</th>
-                  <th className="text-right p-2 font-medium" style={{ color: GOSSIP_COLOR }}>GossipSub</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-[#2a3450]">
-                  <td className="p-2" style={{ color: TEXT_SECONDARY }}>Delivery</td>
-                  <td className="text-right p-2 font-mono">{rlncDeliveryTime != null ? `${rlncDeliveryTime}ms` : 'N/A'}</td>
-                  <td className="text-right p-2 font-mono">{gossipDeliveryTime != null ? `${gossipDeliveryTime}ms` : 'N/A'}</td>
-                </tr>
-                <tr className="border-b border-[#2a3450]">
-                  <td className="p-2" style={{ color: TEXT_SECONDARY }}>Success</td>
-                  <td className="text-right p-2 font-mono">{rlncSuccessRate}%</td>
-                  <td className="text-right p-2 font-mono">{gossipSuccessRate}%</td>
-                </tr>
-                <tr>
-                  <td className="p-2" style={{ color: TEXT_SECONDARY }}>Overhead</td>
-                  <td className="text-right p-2 font-mono">{rlncOverhead}x</td>
-                  <td className="text-right p-2 font-mono">{gossipOverhead}x</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </MetricSection>
+        <LiveComparisonTable
+          rlncDeliveryTime={rlncDeliveryTime}
+          gossipDeliveryTime={gossipDeliveryTime}
+          rlncSuccessRate={rlncSuccessRate}
+          gossipSuccessRate={gossipSuccessRate}
+          rlncOverhead={rlncOverhead}
+          gossipOverhead={gossipOverhead}
+          slotResults={slotResults}
+          networkPreset={networkPreset}
+        />
       )}
 
       {/* Continuous Mode Aggregate Metrics */}
@@ -265,15 +245,26 @@ export default function MetricsPanel() {
 
 function MetricSection({
   title,
+  tooltip,
   children,
 }: {
   title: string;
+  tooltip?: string;
   children: React.ReactNode;
 }) {
   return (
     <div>
-      <h3 className="text-xs font-semibold mb-2" style={{ color: TEXT_PRIMARY }}>
+      <h3 className="text-xs font-semibold mb-2 flex items-center gap-1" style={{ color: TEXT_PRIMARY }}>
         {title}
+        {tooltip && (
+          <span
+            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[8px] font-bold cursor-help"
+            style={{ backgroundColor: '#1e2840', color: TEXT_SECONDARY }}
+            title={tooltip}
+          >
+            ?
+          </span>
+        )}
       </h3>
       {children}
     </div>
@@ -400,6 +391,156 @@ function MetricRow({
       <span className="w-14 text-right font-mono" style={{ color: RECONSTRUCTED_GREEN }}>{rlnc}</span>
       <span className="w-14 text-right font-mono" style={{ color: GOSSIP_COLOR }}>{gossip}</span>
     </div>
+  );
+}
+
+// ── Percentile helper ──
+
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+// ── Live Comparison Table ──
+
+function LiveComparisonTable({
+  rlncDeliveryTime,
+  gossipDeliveryTime,
+  rlncSuccessRate,
+  gossipSuccessRate,
+  rlncOverhead,
+  gossipOverhead,
+  slotResults,
+  networkPreset,
+}: {
+  rlncDeliveryTime: number | null;
+  gossipDeliveryTime: number | null;
+  rlncSuccessRate: number;
+  gossipSuccessRate: number;
+  rlncOverhead: string;
+  gossipOverhead: string;
+  slotResults: import('@/simulation/types').SlotResult[];
+  networkPreset: string;
+}) {
+  const preset = NETWORK_PRESETS[networkPreset];
+
+  // Collect delivery times from slot results for percentiles
+  const rlncTimes = slotResults
+    .filter((s) => s.rlncDeliveryMs != null)
+    .map((s) => s.rlncDeliveryMs!)
+    .sort((a, b) => a - b);
+  const gossipTimes = slotResults
+    .filter((s) => s.gossipDeliveryMs != null)
+    .map((s) => s.gossipDeliveryMs!)
+    .sort((a, b) => a - b);
+
+  const hasEnoughForP50 = rlncTimes.length >= 5 || gossipTimes.length >= 5;
+  const hasEnoughForP95 = rlncTimes.length >= 20 || gossipTimes.length >= 20;
+
+  // Bandwidth saved: compare overhead ratios
+  const rlncOH = parseFloat(rlncOverhead);
+  const gossipOH = parseFloat(gossipOverhead);
+  const bandwidthSaved =
+    !isNaN(rlncOH) && !isNaN(gossipOH) && gossipOH > 0
+      ? ((1 - rlncOH / gossipOH) * 100).toFixed(0)
+      : null;
+
+  // Continuous mode stats
+  const totalSlots = slotResults.length;
+  const savedByRlnc = slotResults.filter((s) => s.rlncSuccess && !s.gossipSuccess).length;
+  const rewardUsd = preset?.blockRewardUsd ?? 0;
+
+  // Row helper
+  const Row = ({ label, rlnc, gossip, highlight }: { label: string; rlnc: string; gossip: string; highlight?: boolean }) => (
+    <tr className={highlight ? 'border-b border-[#2a3450] bg-[#1a2540]' : 'border-b border-[#2a3450]'}>
+      <td className="p-2" style={{ color: TEXT_SECONDARY }}>{label}</td>
+      <td className="text-right p-2 font-mono">{rlnc}</td>
+      <td className="text-right p-2 font-mono">{gossip}</td>
+    </tr>
+  );
+
+  return (
+    <MetricSection title="Comparison">
+      <div className="rounded border border-[#2a3450] overflow-hidden">
+        <table className="w-full text-[10px]">
+          <thead>
+            <tr className="border-b border-[#2a3450]">
+              <th className="text-left p-2 font-medium" style={{ color: TEXT_SECONDARY }}>Metric</th>
+              <th className="text-right p-2 font-medium" style={{ color: RECONSTRUCTED_GREEN }}>mump2p</th>
+              <th className="text-right p-2 font-medium" style={{ color: GOSSIP_COLOR }}>GossipSub</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Row
+              label="Delivery"
+              rlnc={rlncDeliveryTime != null ? `${rlncDeliveryTime}ms` : 'N/A'}
+              gossip={gossipDeliveryTime != null ? `${gossipDeliveryTime}ms` : 'N/A'}
+            />
+            {hasEnoughForP50 && (
+              <Row
+                label="P50 Latency"
+                rlnc={rlncTimes.length >= 5 ? `${percentile(rlncTimes, 50).toFixed(1)}ms` : '-'}
+                gossip={gossipTimes.length >= 5 ? `${percentile(gossipTimes, 50).toFixed(1)}ms` : '-'}
+              />
+            )}
+            {hasEnoughForP95 && (
+              <Row
+                label="P95 Latency"
+                rlnc={rlncTimes.length >= 20 ? `${percentile(rlncTimes, 95).toFixed(1)}ms` : '-'}
+                gossip={gossipTimes.length >= 20 ? `${percentile(gossipTimes, 95).toFixed(1)}ms` : '-'}
+              />
+            )}
+            <Row
+              label="Success"
+              rlnc={`${rlncSuccessRate}%`}
+              gossip={`${gossipSuccessRate}%`}
+            />
+            <Row
+              label="Overhead"
+              rlnc={`${rlncOverhead}x`}
+              gossip={`${gossipOverhead}x`}
+            />
+            {bandwidthSaved !== null && Number(bandwidthSaved) > 0 && (
+              <Row
+                label="BW Saved"
+                rlnc={`${bandwidthSaved}%`}
+                gossip="-"
+                highlight
+              />
+            )}
+            {totalSlots > 0 && (
+              <>
+                <Row
+                  label="Slots (on-time)"
+                  rlnc={`${slotResults.filter((s) => s.rlncSuccess).length}/${totalSlots}`}
+                  gossip={`${slotResults.filter((s) => s.gossipSuccess).length}/${totalSlots}`}
+                />
+                {savedByRlnc > 0 && (
+                  <Row
+                    label="Saved by mump2p"
+                    rlnc={`${savedByRlnc} slot${savedByRlnc !== 1 ? 's' : ''}`}
+                    gossip="-"
+                    highlight
+                  />
+                )}
+                {savedByRlnc > 0 && rewardUsd > 0 && (
+                  <Row
+                    label="Est. Extra Rewards"
+                    rlnc={`+$${(savedByRlnc * rewardUsd).toLocaleString()}`}
+                    gossip="-"
+                    highlight
+                  />
+                )}
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </MetricSection>
   );
 }
 

@@ -59,8 +59,9 @@ export default function SlotTimeline() {
       {/* Slot cards row */}
       <div className="flex items-center gap-2 px-3 py-2">
         <span
-          className="text-[10px] font-semibold whitespace-nowrap mr-1"
+          className="text-[10px] font-semibold whitespace-nowrap mr-1 cursor-help"
           style={{ color: TEXT_SECONDARY }}
+          title="Each slot represents one block proposal. Green = delivered within attestation deadline. Red = missed deadline (validator earns no reward)."
         >
           Slots
         </span>

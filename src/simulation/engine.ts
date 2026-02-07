@@ -45,6 +45,10 @@ const rlncTrackers = new Map<string, IncrementalRankTracker>();
 const gossipReceived = new Set<string>();
 // Track which gossip nodes have already forwarded (to prevent infinite loops)
 const gossipForwarded = new Set<string>();
+// Track per-node last duplicate arrival simTime (for UI flash effect)
+const gossipLastDuplicateSimTime = new Map<string, number>();
+// Track per-node last redundant RLNC shard arrival simTime
+const rlncLastRedundantSimTime = new Map<string, number>();
 
 // Edges lookup for fast access
 let edgeLookup = new Map<string, Edge>();
@@ -139,6 +143,8 @@ export function initPropagation(params: InitParams): void {
   gossipNodeDeliveryTime.clear();
   rlncRecodePushes.clear();
   gossipRetries.clear();
+  gossipLastDuplicateSimTime.clear();
+  rlncLastRedundantSimTime.clear();
   metrics = emptyEngineMetrics();
   publisherId = publisherNodeId;
   simK = k;
@@ -368,7 +374,13 @@ function processRLNC(
 
   if (event.dropped) return;
 
-  if (!tracker || tracker.isFullRank) return;
+  if (!tracker || tracker.isFullRank) {
+    // Record time for UI redundancy indicator
+    if (tracker?.isFullRank) {
+      rlncLastRedundantSimTime.set(event.toNode, event.fireAt);
+    }
+    return;
+  }
 
   const wasUseful = tracker.addRow(event.codingVector!);
   if (wasUseful) {
@@ -450,8 +462,9 @@ function processGossip(
   if (event.dropped) return;
 
   if (gossipReceived.has(event.toNode)) {
-    // Duplicate delivery
+    // Duplicate delivery — record time for UI flash
     metrics.gossipsub.duplicates++;
+    gossipLastDuplicateSimTime.set(event.toNode, event.fireAt);
     return;
   }
 
@@ -540,6 +553,14 @@ export function getEngineMetrics(): EngineMetrics {
   return { ...metrics };
 }
 
+export function getGossipLastDuplicateTime(nodeId: string): number | null {
+  return gossipLastDuplicateSimTime.get(nodeId) ?? null;
+}
+
+export function getRLNCLastRedundantTime(nodeId: string): number | null {
+  return rlncLastRedundantSimTime.get(nodeId) ?? null;
+}
+
 export function clearEngine(): void {
   eventQueue.clear();
   rlncTrackers.clear();
@@ -549,6 +570,8 @@ export function clearEngine(): void {
   gossipNodeDeliveryTime.clear();
   rlncRecodePushes.clear();
   gossipRetries.clear();
+  gossipLastDuplicateSimTime.clear();
+  rlncLastRedundantSimTime.clear();
   metrics = emptyEngineMetrics();
   subscriberIds = [];
   publisherId = null;

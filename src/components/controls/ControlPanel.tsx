@@ -112,7 +112,7 @@ export default function ControlPanel({ onStep, onReset }: ControlPanelProps) {
       </Section>
 
       {/* Packet Loss */}
-      <Section label="Network Messiness" value={`${packetLoss}%`}>
+      <Section label="Network Messiness" value={`${packetLoss}%`} tooltip="Simulates packet loss from network congestion, unreliable links, or adversarial conditions. Higher values make GossipSub degrade faster than RLNC.">
         <input
           type="range"
           min={0}
@@ -155,7 +155,7 @@ export default function ControlPanel({ onStep, onReset }: ControlPanelProps) {
       </Section>
 
       {/* Time Perception */}
-      <Section label="Time Perception" value={`${speed}x`}>
+      <Section label="Time Perception" value={`${speed}x`} tooltip="Controls how fast simulated time passes relative to real time. Use slow-mo (0.1x) for Solana's fast 400ms slots, or hyper (10x) to speed through Ethereum's 12s slots.">
         <div className="flex gap-1 mb-2">
           {([
             { val: 0.1, label: '0.1x' },
@@ -230,7 +230,7 @@ export default function ControlPanel({ onStep, onReset }: ControlPanelProps) {
           Advanced Parameters
         </summary>
         <div className="mt-3 flex flex-col gap-4">
-          <Section label="RLNC Shards (k)" value={String(k)}>
+          <Section label="RLNC Shards (k)" value={String(k)} tooltip="Number of original data shards. A receiver needs any k linearly independent coded shards to reconstruct the full message. Higher k = more granular coding but more shards needed.">
             <input
               type="range"
               min={2}
@@ -326,17 +326,28 @@ export default function ControlPanel({ onStep, onReset }: ControlPanelProps) {
 function Section({
   label,
   value,
+  tooltip,
   children,
 }: {
   label: string;
   value?: string;
+  tooltip?: string;
   children: React.ReactNode;
 }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <label className="text-xs font-medium" style={{ color: TEXT_PRIMARY }}>
+        <label className="text-xs font-medium flex items-center gap-1" style={{ color: TEXT_PRIMARY }}>
           {label}
+          {tooltip && (
+            <span
+              className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[8px] font-bold cursor-help"
+              style={{ backgroundColor: '#1e2840', color: TEXT_SECONDARY }}
+              title={tooltip}
+            >
+              ?
+            </span>
+          )}
         </label>
         {value && (
           <span

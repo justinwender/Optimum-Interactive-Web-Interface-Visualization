@@ -7,12 +7,15 @@ import {
   getRLNCRank,
   isRLNCReconstructed,
   hasGossipMessage,
+  getGossipLastDuplicateTime,
+  getRLNCLastRedundantTime,
 } from '@/simulation/engine';
 import {
   NODE_IDLE,
   NODE_PUBLISHING,
   RECONSTRUCTED_GREEN,
   GOSSIP_COLOR,
+  GOSSIP_DUPLICATE_AMBER,
   ACCENT_TEAL,
   shardColor,
 } from '@/constants/colors';
@@ -37,7 +40,7 @@ function FlexNodeComponent({ data }: NodeProps) {
   const simulationDone = useDashboardStore((s) => s.simulationDone);
 
   // Read engine state directly (re-renders driven by simTime changes)
-  useDashboardStore((s) => s.simTime);
+  const simTime = useDashboardStore((s) => s.simTime);
   const isPublisher = publisherNodeId === nid;
   const hasStarted = publisherNodeId !== null;
 
@@ -45,6 +48,13 @@ function FlexNodeComponent({ data }: NodeProps) {
   const rlncRank = hasStarted && !isPublisher ? getRLNCRank(nid) : (isPublisher ? k : 0);
   const rlncDone = hasStarted && !isPublisher ? isRLNCReconstructed(nid) : isPublisher;
   const gossipDone = hasStarted && !isPublisher ? hasGossipMessage(nid) : isPublisher;
+
+  // Duplicate / redundancy flash detection
+  const FLASH_DURATION_MS = 400; // sim ms the flash stays visible
+  const gossipLastDup = !isRLNC && !isPublisher && hasStarted ? getGossipLastDuplicateTime(nid) : null;
+  const showDupFlash = gossipLastDup !== null && (simTime - gossipLastDup) < FLASH_DURATION_MS;
+  const rlncLastRedundant = isRLNC && !isPublisher && hasStarted && rlncDone ? getRLNCLastRedundantTime(nid) : null;
+  const showRedundantFlash = rlncLastRedundant !== null && (simTime - rlncLastRedundant) < FLASH_DURATION_MS;
 
   // Protocol-specific border color
   let borderColor = NODE_IDLE;
@@ -105,6 +115,13 @@ function FlexNodeComponent({ data }: NodeProps) {
           viewBox="0 0 64 64"
           overflow="visible"
         >
+          {/* Redundant shard deflection flash — dim gray pulse */}
+          {showRedundantFlash && (
+            <circle cx={32} cy={32} r={34} fill="#667788" opacity={0.25}>
+              <animate attributeName="r" values="28;38;28" dur="0.4s" repeatCount="1" />
+              <animate attributeName="opacity" values="0.3;0.08;0" dur="0.4s" repeatCount="1" fill="freeze" />
+            </circle>
+          )}
           {/* Propagating aura — rainbow cycling for RLNC relays */}
           {isPropagating && !isPublisher && (
             <circle cx={32} cy={32} r={36} opacity={0.2}>
@@ -179,6 +196,13 @@ function FlexNodeComponent({ data }: NodeProps) {
           viewBox="0 0 64 64"
           overflow="visible"
         >
+          {/* Duplicate receipt flash — amber/yellow burst */}
+          {showDupFlash && (
+            <circle cx={32} cy={32} r={34} fill={GOSSIP_DUPLICATE_AMBER} opacity={0.35}>
+              <animate attributeName="r" values="28;40;28" dur="0.4s" repeatCount="1" />
+              <animate attributeName="opacity" values="0.5;0.1;0" dur="0.4s" repeatCount="1" fill="freeze" />
+            </circle>
+          )}
           {/* Propagating aura — orange pulse for GossipSub relays */}
           {isPropagating && !isPublisher && (
             <circle cx={32} cy={32} r={36} fill={GOSSIP_COLOR} opacity={0.15}>
@@ -256,6 +280,7 @@ function FlexNodeComponent({ data }: NodeProps) {
             backgroundColor: RECONSTRUCTED_GREEN,
             color: '#000',
           }}
+          title="Block reconstructed — incoming gray shards are redundant"
         >
           {'\u2713'}
         </div>
@@ -264,11 +289,26 @@ function FlexNodeComponent({ data }: NodeProps) {
         <div
           className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold z-20"
           style={{
-            backgroundColor: GOSSIP_COLOR,
+            backgroundColor: showDupFlash ? GOSSIP_DUPLICATE_AMBER : GOSSIP_COLOR,
+            color: '#000',
+            transition: 'background-color 0.2s ease',
+          }}
+          title={showDupFlash ? 'Duplicate message received — wasted bandwidth' : 'Message received'}
+        >
+          {showDupFlash ? '!' : '\u2713'}
+        </div>
+      )}
+
+      {/* GossipSub DUP label flash */}
+      {showDupFlash && (
+        <div
+          className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] font-bold px-1 rounded z-30 pointer-events-none"
+          style={{
+            backgroundColor: GOSSIP_DUPLICATE_AMBER,
             color: '#000',
           }}
         >
-          {'\u2713'}
+          DUP
         </div>
       )}
 

@@ -16,6 +16,7 @@ export function shardColor(index: number): string {
 // ── GossipSub ──
 export const GOSSIP_COLOR = '#FF8C00';
 export const GOSSIP_DIM = '#FF8C0040';
+export const GOSSIP_DUPLICATE_AMBER = '#FFD600'; // amber/yellow for duplicate receipt flash
 
 // ── Status colors ──
 export const RECONSTRUCTED_GREEN = '#00E676';
