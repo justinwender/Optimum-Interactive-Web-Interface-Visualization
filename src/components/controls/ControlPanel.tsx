@@ -216,8 +216,8 @@ export default function ControlPanel({ onStep, onReset }: ControlPanelProps) {
         </div>
         <p className="text-[10px] mt-1.5" style={{ color: TEXT_SECONDARY }}>
           {comparisonMode === 'click'
-            ? 'Click a node to publish data from it'
-            : 'Auto-publishes with random publisher, repeating'}
+            ? 'Click a node to simulate it proposing a block'
+            : 'Auto-selects a random block proposer, repeating'}
         </p>
       </Section>
 
@@ -293,7 +293,7 @@ export default function ControlPanel({ onStep, onReset }: ControlPanelProps) {
             >
               {simulationDone
                 ? (comparisonMode === 'continuous' ? 'Restarting...' : 'Done')
-                : 'Click a node'}
+                : 'Click a node to propose'}
             </div>
           )}
 

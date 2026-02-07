@@ -275,7 +275,7 @@ function FlexNodeComponent({ data }: NodeProps) {
       {/* Hover tooltip */}
       {!running && !simulationDone && comparisonMode === 'click' && (
         <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap pointer-events-none">
-          Click to publish from {label as string}
+          Propose block from {label as string}
         </div>
       )}
 

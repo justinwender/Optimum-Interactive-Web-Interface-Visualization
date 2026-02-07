@@ -582,15 +582,15 @@ A compact table at the bottom of the metrics panel:
 
 ---
 
-### Post-MVP — Ambient Coding Network Model
+### Post-MVP — Ambient Coding Network Model (Decentralized Memory)
 
-**Goal:** Visualize mump2p as a continuously-coding ambient network, closer to production behavior.
+**Goal:** Visualize mump2p as a continuously-coding ambient network, aligned with Optimum's longer-term decentralized memory product vision.
 
-**Concept:** In production mump2p, nodes don't wait for a publish event — they continuously generate and relay coded chunks so data is pre-positioned across the network. When a validator needs block data, it's already distributed nearby. The "subscribe" action collects enough linearly independent chunks from surrounding nodes rather than triggering a propagation wave.
+**Context:** The current MVP models the "block proposal" use case — one node proposes a block and data radiates outward to validators. But Optimum's roadmap includes a decentralized memory layer where RLNC-coded data is continuously distributed and pre-positioned across the network. In this model, nodes don't wait for a publish event — data is already everywhere. When a node needs specific data, it subscribes and coded chunks converge inward from surrounding nodes. This "click-to-subscribe" interaction is the inverse of the current "click-to-propose" model.
 
 **Visual design ideas:**
 - All nodes continuously emit small shard particles in the background (ambient state)
-- When a node subscribes, shards from surrounding nodes converge toward it
+- When a node subscribes (user clicks), shards from surrounding nodes converge toward it
 - Rainbow-colored shards: a complete rainbow arriving at a node = data fully reconstructed
 - Redundant/linearly-dependent shards deflect or fade on contact
 - Contrast with GossipSub: ambient coding shows data "already everywhere" vs GossipSub's reactive store-and-forward hops
@@ -600,8 +600,9 @@ A compact table at the bottom of the metrics panel:
 - Subscribe-triggered convergence animation (reverse direction from current propagation)
 - Background particle system for ambient coding state (low-opacity shard particles flowing between all connected nodes at all times)
 - Performance: may require Web Workers for continuous coding simulation alongside rendering
+- Possible new visualization mode toggle: "Block Proposal" (current) vs "Decentralized Memory" (ambient)
 
-**Status:** Post-MVP. The current propagation model (publisher sends, shards radiate outward) is accurate for the "publish a block" use case and serves the MVP. The ambient model would be a v2 visualization mode.
+**Status:** Post-MVP. The current block-proposal propagation model serves the MVP. The ambient/decentralized-memory model would be a v2 visualization mode, potentially as a separate dashboard view.
 
 ---
 

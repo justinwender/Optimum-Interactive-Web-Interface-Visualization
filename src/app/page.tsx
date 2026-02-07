@@ -143,7 +143,7 @@ export default function Home() {
             <p className="text-[10px]" style={{ color: TEXT_SECONDARY }}>
               {simulationDone
                 ? (comparisonMode === 'continuous' ? 'Next round starting...' : 'Press R to reset')
-                : (comparisonMode === 'click' ? 'Click any node to start propagation' : 'Press Space to pause')}
+                : (comparisonMode === 'click' ? 'Click a node to simulate block proposal' : 'Press Space to pause')}
             </p>
           </div>
         </main>
