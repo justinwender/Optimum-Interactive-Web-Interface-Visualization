@@ -546,39 +546,58 @@ A compact table at the bottom of the metrics panel:
 - **Split canvas layout**: Two side-by-side ReactFlow canvases — left shows mump2p (RLNC), right shows GossipSub. Same topology and node positions, synchronized simulation clock. This eliminates the problem of overlapping particles making it impossible to distinguish protocols.
 - **Relay-active "aura" on propagating nodes**: Nodes that are actively sending/relaying get a glowing aura. For RLNC, a rainbow pulse appears as soon as a relay receives its first shard (it can immediately recode and forward — pipelining). For GossipSub, an orange glow appears only after the relay receives the full message (store-and-forward delay). The speed at which the aura wavefront spreads across the network visually demonstrates RLNC's pipelining advantage.
 - **Receiving progress indicators**: RLNC nodes show a progress ring (rank/k filled segments). GossipSub nodes show a binary received/not-received state. This shows that RLNC accumulates information incrementally while GossipSub is all-or-nothing.
+- **Distinct particle shapes**: RLNC = diamond `<polygon>` (fragment/shard), GossipSub = rounded `<rect>` (whole message block). Redundant particles rendered smaller, dimmer, and gray.
+- **Time perception control**: Prominent speed slider with preset buttons (0.1x–10x) so users can slow down fast networks like Solana or speed through Ethereum slots.
+- **Blockchain-accurate labels**: UI uses block proposal terminology ("Click a node to simulate it proposing a block", "Auto-selects a random block proposer") rather than generic pub/sub language.
 
 **Deliverables:**
 - [x] Split-canvas layout (two ReactFlow instances, shared topology, protocol-filtered particles)
 - [x] Protocol labels on each canvas ("mump2p (RLNC)" / "GossipSub")
-- [x] Relay-active glow/aura (rainbow for RLNC relays, orange for GossipSub relays)
+- [x] Relay-active glow/aura (rainbow SVG animation for RLNC, orange pulse for GossipSub)
 - [x] RLNC receiving progress ring (rank/k segments)
 - [x] GossipSub binary received indicator
-- [ ] Recoding "remix" animation at relay nodes
-- [ ] GossipSub duplicate "waste" visualization
+- [x] Distinct particle shapes (diamonds vs blocks) with redundancy visualization
+- [x] Time perception control (speed slider with presets)
+- [x] Blockchain-accurate label reframing
 - [x] On-Demand ("User Click") mode with dual race timers
 - [x] Continuous Propagation mode (auto-restart with random publisher)
-- [ ] Live comparison table enhancements
+- [x] Slot-based continuous mode with attestation deadlines (ETH: 4s, SOL: 400ms)
+- [x] Block Proposer SlotTimeline — horizontal strip showing per-slot success/failure
+- [x] Continuous aggregate metrics (success rates, avg delivery, "saved by mump2p", est. rewards)
+- [x] Engine reliability fix (increased retries, publisher resend rounds, deadline-based timeout)
 - [x] Keyboard shortcuts (Space = play/pause, R = reset, S = step)
 
-**Acceptance criteria:** User can clearly see mump2p propagating faster than GossipSub in the split view. The aura wavefront visibly spreads sooner on the RLNC side. Progress rings show incremental RLNC reconstruction. All metrics update in real time.
+**Acceptance criteria:** User can clearly see mump2p propagating faster than GossipSub in the split view. The aura wavefront visibly spreads sooner on the RLNC side. Progress rings show incremental RLNC reconstruction. All metrics update in real time. Continuous mode shows slot-by-slot comparison with reward impact.
 
 ---
 
-### Phase 4 — Polish, 3D Globe, & Deployment
+### Phase 4 — Visual Polish, Documentation, & Deployment
 
-**Goal:** Production-ready with optional 3D view and documentation.
+**Goal:** Refine visual clarity, add explanatory UI, build the live comparison table, and prepare for deployment.
 
 **Deliverables:**
+
+_Visual polish:_
+- [ ] GossipSub duplicate flash — when a GossipSub node receives a redundant message, flash a distinct color (e.g. amber/yellow, NOT red — red is reserved for "missed deadline / failed delivery") to make wasted bandwidth visible
+- [ ] RLNC shard fade-out clarity — when RLNC shards fade/dim at a node that already has full rank, ensure the effect clearly communicates "this data was redundant — the node already reconstructed the block." May need a tooltip, brief label, or documentation note rather than a visual tweak
+- [ ] Live comparison table (enhanced) — compact table in MetricsPanel with rolling averages, P50/P95/P99 latencies (after ≥20 samples), bandwidth-saved percentage, and continuous-mode block proposer stats (slots saved by mump2p, estimated reward delta)
+
+_Infrastructure & deployment:_
 - [ ] Optional 3D globe view (React Three Fiber) with geo-pinned nodes
-- [ ] Keyboard shortcuts (Space = play/pause, R = reset, 1/2 = mode toggle)
 - [ ] URL-based state sharing (encode parameters in query string)
-- [ ] Performance optimization (Web Workers for simulation if needed)
+- [ ] Performance optimization (Web Workers for simulation if needed at high node counts)
 - [ ] Accessibility audit (ARIA labels, keyboard navigation, color-blind-safe palette option)
 - [ ] SEO meta tags, Open Graph image
 - [ ] Vercel deployment pipeline
-- [ ] User-facing documentation / guided tutorial overlay
 
-**Acceptance criteria:** Lighthouse score ≥90 on performance. Dashboard loads in <2s on 4G. Shareable URLs reproduce exact simulation state.
+_Documentation:_
+- [ ] User-facing documentation / guided tutorial overlay
+- [ ] Explanatory tooltips for key concepts (attestation deadline, RLNC rank, coding redundancy)
+
+**Acceptance criteria:** Lighthouse score ≥90 on performance. Dashboard loads in <2s on 4G. Shareable URLs reproduce exact simulation state. Duplicate/redundancy effects are visually distinct and easy to understand. Live comparison table shows meaningful aggregates.
+
+**Already completed (previously listed in Phase 4):**
+- [x] Keyboard shortcuts (Space = play/pause, R = reset, S = step) — done in Phase 3
 
 ---
 
@@ -603,6 +622,36 @@ A compact table at the bottom of the metrics panel:
 - Possible new visualization mode toggle: "Block Proposal" (current) vs "Decentralized Memory" (ambient)
 
 **Status:** Post-MVP. The current block-proposal propagation model serves the MVP. The ambient/decentralized-memory model would be a v2 visualization mode, potentially as a separate dashboard view.
+
+---
+
+### Post-MVP — Recoding Remix Animation
+
+**Goal:** Visualize the RLNC recoding step at relay nodes.
+
+When an RLNC relay receives a shard and generates new coded shards, show a brief "remix" animation: incoming shard particles converge into the node center, a mixing effect plays (~200ms), and new outgoing particles emerge with shifted colors. This communicates that relays generate fresh coded data without decoding the original message.
+
+**Status:** Deferred from Phase 3. Nice visual touch but not essential for understanding the protocol difference. The current particle shapes and auras already distinguish the protocols clearly.
+
+---
+
+### Post-MVP — UI Simplification & Layout Redesign
+
+**Goal:** Reorganize the interface into three clean, distinct sections for better clarity and visual hierarchy.
+
+**Context:** Over the course of Phases 1–4, the dashboard has accumulated many controls, stats, and features. While all individually valuable, the current layout can feel scattered — controls, visualization, metrics, slot timeline, and aggregate stats are distributed across sidebars, overlays, and inline sections. A post-MVP pass should consolidate these into a cleaner three-section layout.
+
+**Proposed layout:**
+1. **User Controls** — unified control area (left sidebar or top bar) containing all configuration: node count, packet loss, network preset, topology, comparison mode, time perception, advanced protocol params. No metrics or stats here.
+2. **Visualization** — the full split canvas with particles, node glows, race timers, and the slot timeline. Minimal chrome — the visualization should dominate the viewport.
+3. **Comparison Stats** — unified metrics/comparison area (right sidebar or bottom panel) containing all quantitative data: per-round metrics, live comparison table, continuous aggregate stats, "saved by mump2p" highlight, and estimated rewards. Organized with clear sections and progressive disclosure (summary at top, details expandable below).
+
+**Design principles:**
+- Each section has one purpose: configure, watch, or analyze
+- Stats never overlap with controls
+- The visualization area should be as large as possible
+- Use tabs or accordion within the stats section to manage information density
+- Consider a "presentation mode" that hides controls entirely for demos
 
 ---
 
