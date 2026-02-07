@@ -10,8 +10,10 @@ interface ParticleOverlayProps {
 
 /**
  * Renders animated particles on top of the React Flow canvas.
- * Applies the viewport transform so particles align with nodes
- * regardless of zoom/pan state.
+ *
+ * RLNC shards: small diamond shapes (data fragments), rainbow-colored.
+ * GossipSub messages: larger rounded blocks (whole messages), orange.
+ * Redundant particles (arriving at already-complete nodes) shown dimmer/gray.
  */
 export default function ParticleOverlay({ protocol }: ParticleOverlayProps) {
   const particles = useDashboardStore((s) => s.particles);
@@ -47,37 +49,55 @@ export default function ParticleOverlay({ protocol }: ParticleOverlayProps) {
         const x = flowX * zoom + vx;
         const y = flowY * zoom + vy;
 
-        const color =
-          particle.protocol === 'rlnc'
-            ? shardColor(particle.shardIndex ?? 0)
-            : GOSSIP_COLOR;
+        const isRLNC = particle.protocol === 'rlnc';
+        const isRedundant = particle.isRedundant ?? false;
 
-        const baseRadius = particle.protocol === 'rlnc' ? 4 : 5;
-        const radius = baseRadius * Math.max(zoom, 0.5);
-        const glowRadius = radius * 3;
+        if (isRLNC) {
+          // ── RLNC shard: small diamond shape ──
+          const color = isRedundant ? '#667788' : shardColor(particle.shardIndex ?? 0);
+          const baseR = isRedundant ? 3 : 4;
+          const r = baseR * Math.max(zoom, 0.5);
+          const glowR = r * 2.5;
+          const mainOpacity = particle.dropped ? 0.12 : isRedundant ? 0.3 : 0.85;
+          const glowOpacity = particle.dropped ? 0 : isRedundant ? 0.04 : 0.12;
 
-        return (
-          <g key={particle.id}>
-            {/* Glow trail — larger, semi-transparent circle behind the particle */}
-            {!particle.dropped && (
-              <circle
-                cx={x}
-                cy={y}
-                r={glowRadius}
+          // Diamond: four points at top/right/bottom/left
+          const diamond = `${x},${y - r} ${x + r},${y} ${x},${y + r} ${x - r},${y}`;
+
+          return (
+            <g key={particle.id}>
+              {glowOpacity > 0 && (
+                <circle cx={x} cy={y} r={glowR} fill={color} opacity={glowOpacity} />
+              )}
+              <polygon points={diamond} fill={color} opacity={mainOpacity} />
+            </g>
+          );
+        } else {
+          // ── GossipSub message: larger rounded block ──
+          const color = isRedundant ? '#997744' : GOSSIP_COLOR;
+          const baseR = isRedundant ? 5 : 7;
+          const r = baseR * Math.max(zoom, 0.5);
+          const glowR = r * 2.5;
+          const mainOpacity = particle.dropped ? 0.12 : isRedundant ? 0.3 : 0.85;
+          const glowOpacity = particle.dropped ? 0 : isRedundant ? 0.04 : 0.1;
+
+          return (
+            <g key={particle.id}>
+              {glowOpacity > 0 && (
+                <circle cx={x} cy={y} r={glowR} fill={color} opacity={glowOpacity} />
+              )}
+              <rect
+                x={x - r}
+                y={y - r * 0.7}
+                width={r * 2}
+                height={r * 1.4}
+                rx={r * 0.25}
                 fill={color}
-                opacity={0.12}
+                opacity={mainOpacity}
               />
-            )}
-            {/* Main particle */}
-            <circle
-              cx={x}
-              cy={y}
-              r={radius}
-              fill={color}
-              opacity={particle.dropped ? 0.15 : 0.85}
-            />
-          </g>
-        );
+            </g>
+          );
+        }
       })}
     </svg>
   );

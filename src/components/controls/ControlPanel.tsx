@@ -154,6 +154,45 @@ export default function ControlPanel({ onStep, onReset }: ControlPanelProps) {
         </p>
       </Section>
 
+      {/* Time Perception */}
+      <Section label="Time Perception" value={`${speed}x`}>
+        <div className="flex gap-1 mb-2">
+          {([
+            { val: 0.1, label: '0.1x' },
+            { val: 0.25, label: '0.25x' },
+            { val: 1, label: '1x' },
+            { val: 5, label: '5x' },
+            { val: 10, label: '10x' },
+          ] as const).map(({ val, label }) => (
+            <button
+              key={val}
+              onClick={() => setSpeed(val)}
+              className="flex-1 px-1 py-1 rounded text-[10px] font-medium transition-colors"
+              style={{
+                backgroundColor: speed === val ? ACCENT_TEAL : '#1e2840',
+                color: speed === val ? '#000' : TEXT_SECONDARY,
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <input
+          type="range"
+          min={0.1}
+          max={10}
+          step={0.05}
+          value={speed}
+          onChange={(e) => setSpeed(Number(e.target.value))}
+          className="w-full accent-teal-400"
+        />
+        <div className="flex justify-between text-[10px]" style={{ color: TEXT_SECONDARY }}>
+          <span>Slow-mo</span>
+          <span>Real-time</span>
+          <span>Hyper</span>
+        </div>
+      </Section>
+
       {/* Comparison Mode */}
       <Section label="Mode">
         <div className="flex gap-1.5">
@@ -201,18 +240,6 @@ export default function ControlPanel({ onStep, onReset }: ControlPanelProps) {
               onChange={(e) => setK(Number(e.target.value))}
               className="w-full accent-teal-400"
               disabled={!canModifyNetwork}
-            />
-          </Section>
-
-          <Section label="Simulation Speed" value={`${speed}x`}>
-            <input
-              type="range"
-              min={0.25}
-              max={4}
-              step={0.25}
-              value={speed}
-              onChange={(e) => setSpeed(Number(e.target.value))}
-              className="w-full accent-teal-400"
             />
           </Section>
         </div>

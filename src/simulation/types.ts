@@ -83,6 +83,8 @@ export interface AnimatedParticle {
   shardIndex?: number;
   /** Whether this particle was dropped (packet loss) */
   dropped: boolean;
+  /** Whether this shard/message is redundant (arrived at already-complete node) */
+  isRedundant?: boolean;
 }
 
 export type ComparisonMode = 'click' | 'continuous';

@@ -582,6 +582,29 @@ A compact table at the bottom of the metrics panel:
 
 ---
 
+### Post-MVP — Ambient Coding Network Model
+
+**Goal:** Visualize mump2p as a continuously-coding ambient network, closer to production behavior.
+
+**Concept:** In production mump2p, nodes don't wait for a publish event — they continuously generate and relay coded chunks so data is pre-positioned across the network. When a validator needs block data, it's already distributed nearby. The "subscribe" action collects enough linearly independent chunks from surrounding nodes rather than triggering a propagation wave.
+
+**Visual design ideas:**
+- All nodes continuously emit small shard particles in the background (ambient state)
+- When a node subscribes, shards from surrounding nodes converge toward it
+- Rainbow-colored shards: a complete rainbow arriving at a node = data fully reconstructed
+- Redundant/linearly-dependent shards deflect or fade on contact
+- Contrast with GossipSub: ambient coding shows data "already everywhere" vs GossipSub's reactive store-and-forward hops
+
+**Technical requirements:**
+- New simulation model: pre-distributed coded chunks across the network
+- Subscribe-triggered convergence animation (reverse direction from current propagation)
+- Background particle system for ambient coding state (low-opacity shard particles flowing between all connected nodes at all times)
+- Performance: may require Web Workers for continuous coding simulation alongside rendering
+
+**Status:** Post-MVP. The current propagation model (publisher sends, shards radiate outward) is accurate for the "publish a block" use case and serves the MVP. The ambient model would be a v2 visualization mode.
+
+---
+
 ## 11. File & Directory Structure
 
 ```

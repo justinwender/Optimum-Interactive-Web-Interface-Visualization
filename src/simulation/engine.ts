@@ -306,6 +306,8 @@ function processRLNC(
   // is visible for many frames (the actual delivery already happened).
   const edge = edgeLookup.get(`${event.fromNode}->${event.toNode}`);
   const visualDuration = Math.max((edge?.latencyMs ?? 30) * 10, 500);
+  const tracker = rlncTrackers.get(event.toNode);
+  const isRedundant = !event.dropped && (tracker?.isFullRank ?? false);
   newParticles.push({
     id: `rlnc-${event.fromNode}-${event.toNode}-${event.shardIndex}-${event.fireAt}`,
     protocol: 'rlnc',
@@ -316,11 +318,11 @@ function processRLNC(
     startTime: event.fireAt,
     shardIndex: event.shardIndex,
     dropped: event.dropped,
+    isRedundant,
   });
 
   if (event.dropped) return;
 
-  const tracker = rlncTrackers.get(event.toNode);
   if (!tracker || tracker.isFullRank) return;
 
   const wasUseful = tracker.addRow(event.codingVector!);
@@ -387,6 +389,7 @@ function processGossip(
 
   const edge = edgeLookup.get(`${event.fromNode}->${event.toNode}`);
   const gVisualDuration = Math.max((edge?.latencyMs ?? 30) * 10, 500);
+  const gIsRedundant = !event.dropped && gossipReceived.has(event.toNode);
   newParticles.push({
     id: `gossip-${event.fromNode}-${event.toNode}-${event.fireAt}`,
     protocol: 'gossipsub',
@@ -396,6 +399,7 @@ function processGossip(
     duration: gVisualDuration,
     startTime: event.fireAt,
     dropped: event.dropped,
+    isRedundant: gIsRedundant,
   });
 
   if (event.dropped) return;
