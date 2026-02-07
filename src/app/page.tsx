@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useSimulationLoop } from '@/hooks/useSimulationLoop';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
@@ -9,6 +9,7 @@ import ControlPanel from '@/components/controls/ControlPanel';
 import MetricsPanel from '@/components/metrics/MetricsPanel';
 import RaceTimer from '@/components/canvas/RaceTimer';
 import SlotTimeline from '@/components/canvas/SlotTimeline';
+import TutorialOverlay from '@/components/TutorialOverlay';
 import { useDashboardStore } from '@/store';
 import { ACCENT_TEAL, GOSSIP_COLOR, BG_PRIMARY, BG_PANEL, TEXT_PRIMARY, TEXT_SECONDARY } from '@/constants/colors';
 
@@ -30,6 +31,20 @@ export default function Home() {
   useUrlState();
 
   const [viewMode, setViewMode] = useState<ViewMode>('2d');
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  // Show tutorial on first visit
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const seen = localStorage.getItem('mump2p-tutorial-seen');
+      if (!seen) setShowTutorial(true);
+    }
+  }, []);
+
+  const closeTutorial = () => {
+    setShowTutorial(false);
+    localStorage.setItem('mump2p-tutorial-seen', '1');
+  };
 
   const running = useDashboardStore((s) => s.running);
   const comparisonMode = useDashboardStore((s) => s.comparisonMode);
@@ -101,6 +116,18 @@ export default function Home() {
           >
             {networkPreset.charAt(0).toUpperCase() + networkPreset.slice(1)}
           </span>
+          <button
+            onClick={() => setShowTutorial(true)}
+            aria-label="Open guided tutorial"
+            className="text-[10px] px-2.5 py-1 rounded-full font-medium transition-colors hover:brightness-110"
+            style={{
+              backgroundColor: '#1e2840',
+              color: TEXT_SECONDARY,
+              border: '1px solid #2a3450',
+            }}
+          >
+            ? Guide
+          </button>
           <button
             onClick={() => {
               navigator.clipboard.writeText(window.location.href);
@@ -220,6 +247,9 @@ export default function Home() {
           <MetricsPanel />
         </aside>
       </div>
+
+      {/* Tutorial overlay */}
+      {showTutorial && <TutorialOverlay onClose={closeTutorial} />}
     </div>
   );
 }
