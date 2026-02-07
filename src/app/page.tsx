@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useSimulationLoop } from '@/hooks/useSimulationLoop';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useUrlState } from '@/hooks/useUrlState';
 import ControlPanel from '@/components/controls/ControlPanel';
 import MetricsPanel from '@/components/metrics/MetricsPanel';
 import RaceTimer from '@/components/canvas/RaceTimer';
@@ -18,6 +19,7 @@ const NetworkCanvas = dynamic(
 export default function Home() {
   const { stepForward, cancelAutoRestart } = useSimulationLoop();
   useKeyboardShortcuts(stepForward);
+  useUrlState();
 
   const running = useDashboardStore((s) => s.running);
   const comparisonMode = useDashboardStore((s) => s.comparisonMode);
@@ -53,7 +55,7 @@ export default function Home() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <span
             className="text-[10px] px-2.5 py-1 rounded-full font-medium"
             style={{
@@ -64,23 +66,40 @@ export default function Home() {
           >
             {networkPreset.charAt(0).toUpperCase() + networkPreset.slice(1)}
           </span>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.href);
+              const btn = document.getElementById('copy-link-btn');
+              if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Share Link'; }, 1500); }
+            }}
+            id="copy-link-btn"
+            aria-label="Copy shareable link to clipboard"
+            className="text-[10px] px-2.5 py-1 rounded-full font-medium transition-colors hover:brightness-110"
+            style={{
+              backgroundColor: '#1e2840',
+              color: TEXT_SECONDARY,
+              border: '1px solid #2a3450',
+            }}
+          >
+            Share Link
+          </button>
         </div>
       </header>
 
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar — Controls */}
-        <aside className="w-72 flex-shrink-0 border-r border-[#1e2840] overflow-hidden">
+        <aside className="w-72 flex-shrink-0 border-r border-[#1e2840] overflow-hidden" role="complementary" aria-label="Simulation controls">
           <ControlPanel onStep={stepForward} onReset={cancelAutoRestart} />
         </aside>
 
         {/* Center — Split Canvas */}
-        <main className="flex-1 flex flex-col overflow-hidden relative">
+        <main className="flex-1 flex flex-col overflow-hidden relative" role="main" aria-label="Network visualization">
           {/* Slot Timeline — visible in continuous mode */}
           <SlotTimeline />
           <div className="flex flex-1 overflow-hidden">
             {/* RLNC Canvas */}
-            <div className="flex-1 flex flex-col border-r border-[#1e2840]">
+            <div className="flex-1 flex flex-col border-r border-[#1e2840]" role="region" aria-label="mump2p RLNC network visualization">
               <div
                 className="px-3 py-1.5 border-b border-[#1e2840] flex items-center justify-center gap-2"
                 style={{ backgroundColor: `${BG_PANEL}CC` }}
@@ -103,7 +122,7 @@ export default function Home() {
             </div>
 
             {/* GossipSub Canvas */}
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col" role="region" aria-label="GossipSub network visualization">
               <div
                 className="px-3 py-1.5 border-b border-[#1e2840] flex items-center justify-center gap-2"
                 style={{ backgroundColor: `${BG_PANEL}CC` }}
@@ -152,7 +171,7 @@ export default function Home() {
         </main>
 
         {/* Right sidebar — Metrics */}
-        <aside className="w-72 flex-shrink-0 border-l border-[#1e2840] overflow-hidden">
+        <aside className="w-72 flex-shrink-0 border-l border-[#1e2840] overflow-hidden" role="complementary" aria-label="Simulation metrics">
           <MetricsPanel />
         </aside>
       </div>
