@@ -148,9 +148,9 @@ export default function ControlPanel({ onStep, onReset }: ControlPanelProps) {
           ))}
         </div>
         <p className="text-[10px] mt-1.5" style={{ color: TEXT_SECONDARY }}>
-          {networkPreset === 'ethereum' && 'Avg latency ~30ms · 12s slots'}
-          {networkPreset === 'solana' && 'Avg latency ~15ms · 400ms slots'}
-          {networkPreset === 'custom' && 'Avg latency ~25ms · 1s slots'}
+          {networkPreset === 'ethereum' && 'Avg latency ~30ms · 12s slots · 4s deadline'}
+          {networkPreset === 'solana' && 'Avg latency ~15ms · 400ms slots · 400ms deadline'}
+          {networkPreset === 'custom' && 'Avg latency ~25ms · 1s slots · 500ms deadline'}
         </p>
       </Section>
 

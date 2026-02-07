@@ -6,6 +6,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import ControlPanel from '@/components/controls/ControlPanel';
 import MetricsPanel from '@/components/metrics/MetricsPanel';
 import RaceTimer from '@/components/canvas/RaceTimer';
+import SlotTimeline from '@/components/canvas/SlotTimeline';
 import { useDashboardStore } from '@/store';
 import { ACCENT_TEAL, GOSSIP_COLOR, BG_PRIMARY, BG_PANEL, TEXT_PRIMARY, TEXT_SECONDARY } from '@/constants/colors';
 
@@ -75,6 +76,8 @@ export default function Home() {
 
         {/* Center — Split Canvas */}
         <main className="flex-1 flex flex-col overflow-hidden relative">
+          {/* Slot Timeline — visible in continuous mode */}
+          <SlotTimeline />
           <div className="flex flex-1 overflow-hidden">
             {/* RLNC Canvas */}
             <div className="flex-1 flex flex-col border-r border-[#1e2840]">

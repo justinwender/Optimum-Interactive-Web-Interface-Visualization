@@ -7,6 +7,7 @@ import type {
   NetworkPreset,
   TopologyType,
   AnimatedParticle,
+  SlotResult,
 } from '@/simulation/types';
 import type { EngineMetrics } from '@/simulation/engine';
 import { generateTopology } from '@/simulation/topology';
@@ -51,6 +52,9 @@ export interface DashboardState {
   // Metrics (pushed from engine)
   engineMetrics: EngineMetrics | null;
 
+  // Continuous mode slot tracking
+  slotResults: SlotResult[];
+
   // Actions
   setNodeCount: (count: number) => void;
   setPacketLoss: (loss: number) => void;
@@ -67,6 +71,8 @@ export interface DashboardState {
   updateParticles: (particles: AnimatedParticle[]) => void;
   pushEngineMetrics: (m: EngineMetrics) => void;
   setSimulationDone: (done: boolean) => void;
+  recordSlotResult: (result: SlotResult) => void;
+  clearSlotResults: () => void;
 }
 
 function buildTopology(
@@ -115,6 +121,9 @@ export const useDashboardStore = create<DashboardState>((set, get) => {
 
     // Metrics
     engineMetrics: null,
+
+    // Continuous mode
+    slotResults: [],
 
     // ── Actions ──
 
@@ -232,6 +241,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => {
         subscriberNodeIds: [],
         engineMetrics: null,
         simulationDone: false,
+        slotResults: [],
       });
     },
 
@@ -240,5 +250,10 @@ export const useDashboardStore = create<DashboardState>((set, get) => {
     updateParticles: (particles) => set({ particles }),
     pushEngineMetrics: (m) => set({ engineMetrics: m }),
     setSimulationDone: (done) => set({ simulationDone: done, running: !done }),
+
+    recordSlotResult: (result) =>
+      set((state) => ({ slotResults: [...state.slotResults, result] })),
+
+    clearSlotResults: () => set({ slotResults: [] }),
   };
 });

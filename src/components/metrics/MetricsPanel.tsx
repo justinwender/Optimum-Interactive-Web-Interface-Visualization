@@ -14,6 +14,7 @@ import {
   RECONSTRUCTED_GREEN,
   GOSSIP_COLOR,
 } from '@/constants/colors';
+import { NETWORK_PRESETS } from '@/constants/defaults';
 
 export default function MetricsPanel() {
   const engineMetrics = useDashboardStore((s) => s.engineMetrics);
@@ -23,6 +24,9 @@ export default function MetricsPanel() {
   const subscriberNodeIds = useDashboardStore((s) => s.subscriberNodeIds);
   const k = useDashboardStore((s) => s.k);
   const simTime = useDashboardStore((s) => s.simTime);
+  const slotResults = useDashboardStore((s) => s.slotResults);
+  const networkPreset = useDashboardStore((s) => s.networkPreset);
+  const comparisonMode = useDashboardStore((s) => s.comparisonMode);
 
   const isIdle = !publisherNodeId;
 
@@ -245,6 +249,14 @@ export default function MetricsPanel() {
           </div>
         </MetricSection>
       )}
+
+      {/* Continuous Mode Aggregate Metrics */}
+      {comparisonMode === 'continuous' && slotResults.length > 0 && (
+        <ContinuousAggregateSection
+          slotResults={slotResults}
+          networkPreset={networkPreset}
+        />
+      )}
     </div>
   );
 }
@@ -388,5 +400,102 @@ function MetricRow({
       <span className="w-14 text-right font-mono" style={{ color: RECONSTRUCTED_GREEN }}>{rlnc}</span>
       <span className="w-14 text-right font-mono" style={{ color: GOSSIP_COLOR }}>{gossip}</span>
     </div>
+  );
+}
+
+function ContinuousAggregateSection({
+  slotResults,
+  networkPreset,
+}: {
+  slotResults: import('@/simulation/types').SlotResult[];
+  networkPreset: string;
+}) {
+  const preset = NETWORK_PRESETS[networkPreset];
+  const total = slotResults.length;
+  const rlncSuccesses = slotResults.filter((s) => s.rlncSuccess).length;
+  const gossipSuccesses = slotResults.filter((s) => s.gossipSuccess).length;
+  const savedByRlnc = slotResults.filter(
+    (s) => s.rlncSuccess && !s.gossipSuccess,
+  ).length;
+
+  const rlncRate = total > 0 ? Math.round((rlncSuccesses / total) * 100) : 0;
+  const gossipRate = total > 0 ? Math.round((gossipSuccesses / total) * 100) : 0;
+
+  // Average delivery times (only for successful slots)
+  const rlncTimes = slotResults
+    .filter((s) => s.rlncSuccess && s.rlncDeliveryMs != null)
+    .map((s) => s.rlncDeliveryMs!);
+  const gossipTimes = slotResults
+    .filter((s) => s.gossipSuccess && s.gossipDeliveryMs != null)
+    .map((s) => s.gossipDeliveryMs!);
+
+  const avgRlnc = rlncTimes.length > 0
+    ? (rlncTimes.reduce((a, b) => a + b, 0) / rlncTimes.length).toFixed(1)
+    : '-';
+  const avgGossip = gossipTimes.length > 0
+    ? (gossipTimes.reduce((a, b) => a + b, 0) / gossipTimes.length).toFixed(1)
+    : '-';
+
+  const rewardLabel = preset?.blockRewardLabel || '';
+  const rewardUsd = preset?.blockRewardUsd ?? 50;
+
+  return (
+    <MetricSection title="Continuous Mode Aggregate">
+      <div className="space-y-2">
+        <MetricRow
+          label="Total Slots"
+          rlnc=""
+          gossip=""
+        />
+        <div className="text-[10px] font-mono text-center" style={{ color: TEXT_PRIMARY }}>
+          {total} slot{total !== 1 ? 's' : ''} completed
+        </div>
+        <MetricRow
+          label="Success Rate"
+          rlnc={`${rlncRate}%`}
+          gossip={`${gossipRate}%`}
+        />
+        <MetricRow
+          label="Avg Delivery"
+          rlnc={avgRlnc !== '-' ? `${avgRlnc}ms` : '-'}
+          gossip={avgGossip !== '-' ? `${avgGossip}ms` : '-'}
+        />
+        <MetricRow
+          label="On-time Slots"
+          rlnc={`${rlncSuccesses}/${total}`}
+          gossip={`${gossipSuccesses}/${total}`}
+        />
+      </div>
+
+      {/* Saved by mump2p highlight */}
+      {savedByRlnc > 0 && (
+        <div
+          className="mt-3 p-2.5 rounded border"
+          style={{
+            backgroundColor: `${RECONSTRUCTED_GREEN}10`,
+            borderColor: `${RECONSTRUCTED_GREEN}30`,
+          }}
+        >
+          <p className="text-[11px] font-semibold" style={{ color: RECONSTRUCTED_GREEN }}>
+            mump2p saved {savedByRlnc} proposal{savedByRlnc !== 1 ? 's' : ''}
+          </p>
+          <p className="text-[10px] mt-0.5" style={{ color: TEXT_SECONDARY }}>
+            {savedByRlnc} slot{savedByRlnc !== 1 ? 's' : ''} where mump2p delivered on time
+            but GossipSub missed the attestation deadline
+          </p>
+          {rewardLabel && (
+            <p className="text-[10px] mt-1 font-mono" style={{ color: RECONSTRUCTED_GREEN }}>
+              Est. extra rewards: {savedByRlnc} x {rewardLabel} = +${(savedByRlnc * rewardUsd).toLocaleString()}
+            </p>
+          )}
+        </div>
+      )}
+
+      {savedByRlnc === 0 && total > 2 && (
+        <p className="text-[10px] mt-2 italic" style={{ color: TEXT_SECONDARY }}>
+          Try increasing packet loss to see mump2p&apos;s advantage under adversarial conditions
+        </p>
+      )}
+    </MetricSection>
   );
 }

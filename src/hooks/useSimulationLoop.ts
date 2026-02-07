@@ -9,6 +9,7 @@ import {
   clearEngine,
   nextEventTime,
 } from '@/simulation/engine';
+import { NETWORK_PRESETS } from '@/constants/defaults';
 
 /**
  * Drives the simulation via requestAnimationFrame.
@@ -17,7 +18,8 @@ import {
  * Each frame advances simTime by `realDeltaMs * speed`, then processes
  * all engine events up to that point and updates particle positions.
  *
- * In continuous mode, auto-restarts with a new random publisher after completion.
+ * In continuous mode, slots end based on the network preset's
+ * attestation deadline. A SlotResult is recorded for each slot.
  */
 export function useSimulationLoop() {
   const rafRef = useRef<number | null>(null);
@@ -82,27 +84,62 @@ export function useSimulationLoop() {
     store.updateParticles(updatedParticles);
     store.pushEngineMetrics(metrics);
 
-    // Check if simulation is complete
+    // Check completion conditions
     const bothDone = metrics.rlnc.allDone && metrics.gossipsub.allDone;
     const noMoreEvents = !hasRemainingEvents();
     const noMoreParticles = updatedParticles.length === 0;
 
-    if ((bothDone && noMoreParticles) || (noMoreEvents && noMoreParticles && newSimTime > 5000)) {
+    // Get attestation deadline from preset
+    const presetConfig = NETWORK_PRESETS[store.networkPreset];
+    const deadline = presetConfig?.attestationDeadlineMs ?? 4000;
+    const isContinuous = store.comparisonMode === 'continuous';
+
+    // Slot end conditions:
+    // - Continuous mode: use attestation deadline as timeout
+    // - Click mode: use a generous timeout (deadline * 2, minimum 2000ms)
+    const timeoutMs = isContinuous
+      ? deadline + 200  // Small buffer past deadline for particle cleanup
+      : Math.max(deadline * 2, 2000);
+
+    const pastTimeout = newSimTime > timeoutMs && noMoreParticles;
+    const naturalEnd = bothDone && noMoreParticles;
+    const stalledEnd = noMoreEvents && noMoreParticles && newSimTime > timeoutMs;
+
+    if (naturalEnd || pastTimeout || stalledEnd) {
+      // In continuous mode, record the slot result
+      if (isContinuous && store.publisherNodeId) {
+        const rlncDelivery = metrics.rlnc.lastDeliverySimMs;
+        const gossipDelivery = metrics.gossipsub.lastDeliverySimMs;
+        const rlncSuccess = metrics.rlnc.allDone && (rlncDelivery ?? Infinity) <= deadline;
+        const gossipSuccess = metrics.gossipsub.allDone && (gossipDelivery ?? Infinity) <= deadline;
+        const proposerNode = store.nodes.find((n) => n.id === store.publisherNodeId);
+
+        store.recordSlotResult({
+          slotNumber: store.slotResults.length + 1,
+          proposerNodeId: store.publisherNodeId,
+          proposerLabel: proposerNode?.label ?? store.publisherNodeId,
+          rlncDeliveryMs: rlncDelivery,
+          gossipDeliveryMs: gossipDelivery,
+          rlncSuccess,
+          gossipSuccess,
+          deadlineMs: deadline,
+        });
+      }
+
       store.setSimulationDone(true);
       initializedRef.current = false;
       rafRef.current = null;
 
-      // Auto-restart in continuous mode
-      if (store.comparisonMode === 'continuous') {
+      // Auto-restart in continuous mode with minimal delay
+      if (isContinuous) {
         autoRestartRef.current = setTimeout(() => {
           autoRestartRef.current = null;
           const state = useDashboardStore.getState();
-          // Only restart if still in continuous mode and not manually reset
           if (state.comparisonMode !== 'continuous' || !state.simulationDone) return;
           clearEngine();
           const randomIdx = Math.floor(Math.random() * state.nodes.length);
           state.startPropagation(state.nodes[randomIdx].id);
-        }, 2000);
+        }, 500); // Fast restart for continuous mode
       }
 
       return;

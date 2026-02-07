@@ -17,6 +17,9 @@ export const NETWORK_PRESETS: Record<string, NetworkPresetConfig> = {
     slotTimeMs: 12_000,
     processingDelayRLNC: 0.5,
     processingDelayGossip: 1,
+    attestationDeadlineMs: 4_000,
+    blockRewardLabel: '~0.05 ETH',
+    blockRewardUsd: 150,
   },
   solana: {
     label: 'Solana',
@@ -27,6 +30,9 @@ export const NETWORK_PRESETS: Record<string, NetworkPresetConfig> = {
     slotTimeMs: 400,
     processingDelayRLNC: 0.5,
     processingDelayGossip: 1,
+    attestationDeadlineMs: 400,
+    blockRewardLabel: '~0.01 SOL',
+    blockRewardUsd: 2,
   },
   custom: {
     label: 'Custom',
@@ -37,5 +43,8 @@ export const NETWORK_PRESETS: Record<string, NetworkPresetConfig> = {
     slotTimeMs: 1000,
     processingDelayRLNC: 0.5,
     processingDelayGossip: 1,
+    attestationDeadlineMs: 500,
+    blockRewardLabel: '',
+    blockRewardUsd: 50,
   },
 };

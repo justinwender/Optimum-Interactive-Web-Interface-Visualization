@@ -56,13 +56,16 @@ const gossipNodeDeliveryTime = new Map<string, number>();
 
 // RLNC: track how many recode rounds each relay has done (cap to prevent explosion)
 const rlncRecodePushes = new Map<string, number>();
-const MAX_RLNC_PUSHES_PER_NODE = 6; // max recode push rounds per relay
+const MAX_RLNC_PUSHES_PER_NODE = 12; // max recode push rounds per relay
 const RLNC_PUSH_INTERVAL = 3; // ms between push rounds
 
 // GossipSub: track retry count per node
 const gossipRetries = new Map<string, number>();
-const MAX_GOSSIP_RETRIES = 2;
+const MAX_GOSSIP_RETRIES = 4;
 const GOSSIP_RETRY_INTERVAL = 80; // ms between retries
+
+// Publisher periodic resend times (sim ms) — ensures delivery under high loss
+const PUBLISHER_RESEND_TIMES = [100, 250, 500];
 
 // Accumulated metrics
 export interface EngineMetrics {
@@ -172,7 +175,7 @@ export function initPropagation(params: InitParams): void {
   const lossCompensation = lossRate > 0 ? 1 / Math.max(1 - lossRate, 0.15) : 1;
   const totalShards = Math.min(
     Math.ceil(k * redundancyFactor * lossCompensation),
-    k * 4, // cap to prevent excessive events
+    k * 6, // cap to prevent excessive events
   );
 
   for (let s = 0; s < totalShards; s++) {
@@ -226,6 +229,48 @@ export function initPropagation(params: InitParams): void {
       const dropped = random() < lossRate;
       eventQueue.push({
         fireAt: edge.latencyMs + retry * GOSSIP_RETRY_INTERVAL,
+        seq: 0,
+        protocol: 'gossipsub',
+        type: 'message_arrive',
+        fromNode: publisherNodeId,
+        toNode: neighborId,
+        dropped,
+      });
+    }
+  }
+
+  // ── Publisher periodic resend rounds (both protocols) ──
+  // Ensures delivery under high loss by sending fresh bursts at intervals.
+  for (const resendTime of PUBLISHER_RESEND_TIMES) {
+    // RLNC resend: fresh coded shards
+    const resendShards = Math.ceil(k * 1.5);
+    for (let s = 0; s < resendShards; s++) {
+      const codingVector = Array.from({ length: k }, () => gfRandom(random));
+      for (const neighborId of publisher.neighbors) {
+        const edge = edgeLookup.get(`${publisherNodeId}->${neighborId}`);
+        if (!edge) continue;
+        const dropped = random() < lossRate;
+        eventQueue.push({
+          fireAt: resendTime + edge.latencyMs + s * 0.3,
+          seq: 0,
+          protocol: 'rlnc',
+          type: 'shard_arrive',
+          fromNode: publisherNodeId,
+          toNode: neighborId,
+          shardIndex: 1000 + resendTime + s,
+          codingVector: [...codingVector],
+          dropped,
+        });
+      }
+    }
+
+    // GossipSub resend
+    for (const neighborId of publisher.neighbors) {
+      const edge = edgeLookup.get(`${publisherNodeId}->${neighborId}`);
+      if (!edge) continue;
+      const dropped = random() < lossRate;
+      eventQueue.push({
+        fireAt: resendTime + edge.latencyMs,
         seq: 0,
         protocol: 'gossipsub',
         type: 'message_arrive',

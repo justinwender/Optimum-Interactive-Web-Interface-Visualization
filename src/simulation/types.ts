@@ -100,6 +100,30 @@ export interface NetworkPresetConfig {
   slotTimeMs: number;
   processingDelayRLNC: number;
   processingDelayGossip: number;
+  /** Time within a slot by which block must propagate to earn attestations */
+  attestationDeadlineMs: number;
+  /** Human-readable block reward label (e.g. "~0.05 ETH") */
+  blockRewardLabel: string;
+  /** Numeric block reward estimate in USD for calculations */
+  blockRewardUsd: number;
+}
+
+// ── Slot results for continuous mode ──
+
+export interface SlotResult {
+  slotNumber: number;
+  proposerNodeId: string;
+  proposerLabel: string;
+  /** Simulated ms for RLNC full delivery, null if not completed */
+  rlncDeliveryMs: number | null;
+  /** Simulated ms for GossipSub full delivery, null if not completed */
+  gossipDeliveryMs: number | null;
+  /** Whether RLNC delivered to all nodes within the attestation deadline */
+  rlncSuccess: boolean;
+  /** Whether GossipSub delivered to all nodes within the attestation deadline */
+  gossipSuccess: boolean;
+  /** The attestation deadline used for this slot */
+  deadlineMs: number;
 }
 
 export interface SimulationMetrics {
