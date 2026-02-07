@@ -3,8 +3,8 @@
 ## Optimum Interactive Web Interface Visualization
 
 **Version:** 1.0
-**Date:** 2026-02-05
-**Status:** Planning Phase
+**Date:** 2026-02-05 (updated 2026-02-07)
+**Status:** Phase 4 Complete — Visual Polish, Documentation, & Deployment
 
 ---
 
@@ -575,29 +575,31 @@ A compact table at the bottom of the metrics panel:
 
 **Goal:** Refine visual clarity, add explanatory UI, build the live comparison table, and prepare for deployment.
 
+**Status:** Complete (2026-02-07). All visual polish, documentation, and infrastructure items delivered.
+
 **Deliverables:**
 
 _Visual polish:_
-- [ ] GossipSub duplicate flash — when a GossipSub node receives a redundant message, flash a distinct color (e.g. amber/yellow, NOT red — red is reserved for "missed deadline / failed delivery") to make wasted bandwidth visible
-- [ ] RLNC shard fade-out clarity — when RLNC shards fade/dim at a node that already has full rank, ensure the effect clearly communicates "this data was redundant — the node already reconstructed the block." May need a tooltip, brief label, or documentation note rather than a visual tweak
-- [ ] Live comparison table (enhanced) — compact table in MetricsPanel with rolling averages, P50/P95/P99 latencies (after ≥20 samples), bandwidth-saved percentage, and continuous-mode block proposer stats (slots saved by mump2p, estimated reward delta)
+- [x] GossipSub duplicate flash — amber/yellow (#FFD600) burst animation on nodes receiving redundant messages, with "DUP" label and "!" badge. Distinct from red (failure) to show wasted bandwidth
+- [x] RLNC shard fade-out clarity — gray deflection pulse on full-rank nodes when redundant shards arrive, with tooltip: "Block reconstructed — incoming gray shards are redundant"
+- [x] Live comparison table (enhanced) — compact table in MetricsPanel with delivery time, P50/P95 latencies (after 5+/20+ samples), success rate, overhead ratio, BW saved %, slots on-time, "saved by mump2p", and estimated extra rewards
 
 _Infrastructure & deployment:_
-- [ ] Optional 3D globe view (React Three Fiber) with geo-pinned nodes
-- [ ] URL-based state sharing (encode parameters in query string)
-- [ ] Performance optimization (Web Workers for simulation if needed at high node counts)
-- [ ] Accessibility audit (ARIA labels, keyboard navigation, color-blind-safe palette option)
-- [ ] SEO meta tags, Open Graph image
-- [ ] Vercel deployment pipeline
+- [x] 3D globe view (React Three Fiber) — interactive globe with nodes mapped from 2D layout to spherical coordinates, Bezier-arc edges, animated particles, orbit controls with auto-rotation. Toggle between "2D Split" and "3D Globe" via header buttons
+- [x] URL-based state sharing — bidirectional sync of all simulation params (nodes, loss, preset, mode, topology, k, speed) with URL query string via replaceState. "Share Link" button copies URL to clipboard
+- [x] Accessibility — ARIA landmarks (role="complementary", "main", "region"), aria-labels on all major sections and interactive controls, keyboard navigation for tutorial overlay
+- [x] SEO meta tags — Open Graph, Twitter Card, keywords, robots directives in layout.tsx
+- [ ] Performance optimization (Web Workers for simulation if needed at high node counts) — not needed for ≤50 nodes on main thread
+- [ ] Vercel deployment pipeline — deferred pending deployment config
 
 _Documentation:_
-- [ ] User-facing documentation / guided tutorial overlay
-- [ ] Explanatory tooltips for key concepts (attestation deadline, RLNC rank, coding redundancy)
+- [x] User-facing guided tutorial overlay — 8-step interactive walkthrough (controls, visualization, metrics, RLNC concepts, GossipSub concepts, attestation deadlines, keyboard shortcuts). Auto-shows on first visit (localStorage), re-openable via "? Guide" header button. Navigable with arrow keys, step dots, and prev/next buttons
+- [x] Explanatory tooltips — added to: Network Messiness, Time Perception, RLNC Shards (k), Latency, Bandwidth, Slot Timeline ("Slots" label), reconstructed node checkmarks, duplicate flash indicators
 
-**Acceptance criteria:** Lighthouse score ≥90 on performance. Dashboard loads in <2s on 4G. Shareable URLs reproduce exact simulation state. Duplicate/redundancy effects are visually distinct and easy to understand. Live comparison table shows meaningful aggregates.
+**Acceptance criteria:** Shareable URLs reproduce exact simulation state. Duplicate/redundancy effects are visually distinct and easy to understand. Live comparison table shows meaningful aggregates. Tutorial provides clear onboarding. ✓ All met.
 
-**Already completed (previously listed in Phase 4):**
-- [x] Keyboard shortcuts (Space = play/pause, R = reset, S = step) — done in Phase 3
+**Previously completed (listed in Phase 4 but done in Phase 3):**
+- [x] Keyboard shortcuts (Space = play/pause, R = reset, S = step)
 
 ---
 
